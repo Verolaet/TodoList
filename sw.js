@@ -1,6 +1,6 @@
 // Service worker : met l'appli en cache pour une ouverture instantanée, même hors ligne.
 // Les données (Firestore) ne passent pas par ici : Firebase gère son propre cache local.
-const CACHE = 'todo-v2';
+const CACHE = 'todo-v3';
 const SHELL = [
   './', './index.html', './styles.css', './app.js', './config.js', './dateparse.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',

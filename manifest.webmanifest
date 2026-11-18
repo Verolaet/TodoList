@@ -1,6 +1,6 @@
 {
-  "name": "Mes tâches",
-  "short_name": "Tâches",
+  "name": "TodoList",
+  "short_name": "TodoList",
   "description": "To-do list Pro et Perso",
   "lang": "fr",
   "start_url": "./",

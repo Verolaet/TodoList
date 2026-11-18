@@ -1,4 +1,4 @@
-# Contexte projet — « Mes tâches » (to-do list Pro / Perso)
+# Contexte projet — « TodoList » (to-do list Pro / Perso)
 
 Appli personnelle de Laetitia (ancienne développeuse), pour remplacer Todoist et Google Keep.
 Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
@@ -23,9 +23,15 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 
 ## Spécification fonctionnelle (validée)
 - 2 espaces cloisonnés Pro / Perso (onglets). Une seule liste par espace, filtrable par étiquette (1 étiquette max par tâche, propre à l'espace).
+- Nom de l'appli : « TodoList » (manifest `name` et `short_name`, titre de la page, écran de connexion).
 - Tâche : case à 3 états (vide → trait → coché, au clic), titre obligatoire, échéance, priorité, étiquette, sous-tâches (même case à 3 états).
+- Priorité : drapeau à droite de la case (tâches et sous-tâches) — rouge haute, orange moyenne, neutre basse ou aucune.
+  Un appui sur le drapeau fait neutre → haute → moyenne → neutre (« basse » se règle dans la fiche).
+- Glisser une tâche vers la droite (ailleurs que sur la poignée) : elle devient la dernière sous-tâche de la tâche du dessus et perd son étiquette.
+  Refusé (message) si elle a déjà des sous-tâches : un seul niveau de sous-tâches. Glisser une sous-tâche vers la gauche : elle redevient
+  une tâche, placée juste après son ancienne parente, et reprend l'étiquette de celle-ci. Seuil 64 px ; fonctionne au doigt et à la souris.
 - Cocher une tâche termine toutes ses sous-tâches. L'inverse n'est pas automatique.
-- Terminées : barrées, regroupées en bas ; bouton « Supprimer les terminées » (avec confirmation) qui supprime les tâches parentes terminées et leurs sous-tâches.
+- Terminées : barrées et en italique, regroupées en bas ; bouton « Supprimer les terminées » (avec confirmation) qui supprime les tâches parentes terminées et leurs sous-tâches.
 - Tris : personnalisé (glisser-déposer, uniquement dans ce mode), par échéance, par priorité ; mémorisé par espace.
 - Saisie rapide au clavier ou à la dictée (Web Speech API, fr-FR) ; reconnaissance des dates en français (`dateparse.js` : « demain », « pour vendredi », « le 25 », « 3 décembre », « dans 3 jours »…). Les nouvelles tâches sont ajoutées en haut.
 - Édition complète d'une tâche au clic (titre, statut, échéance, priorité, étiquette, sous-tâches).
@@ -55,6 +61,10 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 3. Conseillé : ajouter l'adresse principale comme Propriétaire du projet Firebase (pérennité).
 4. Ajuster les couleurs en conditions réelles si besoin (rendu différent téléphone / PC).
 5. V2 : import CSV.
+
+## Tester sans toucher aux vraies données
+- Une page de test peut remplacer Firebase par une fausse base en mémoire : carte d'import (`importmap`) qui redirige les 3 modules
+  gstatic vers des faux modules, service worker neutralisé, servie en local (ex. serveur PowerShell `HttpListener` sur localhost).
 
 ## Préférences de Laetitia
 - Poser des questions de clarification avant de se lancer si nécessaire ; réponses structurées en puces.

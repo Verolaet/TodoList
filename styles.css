@@ -20,6 +20,9 @@
   --chip: #6E3446; --line: #56283A; --field: #4E2332; --danger: #FFB4AB;
 }
 :root.dark { color-scheme: dark; }
+/* Drapeaux de priorité (haute = rouge, moyenne = orange ; basse ou aucune = neutre) */
+:root { --prio-high: #D93025; --prio-med: #EF8A00; }
+:root.dark { --prio-high: #FF7A70; --prio-med: #FFB54D; }
 
 /* ---------- Base ---------- */
 * { box-sizing: border-box; }
@@ -89,7 +92,7 @@ button.wide { width: 100%; margin: 8px 0; }
 .list { list-style: none; margin: 0; padding: 0; }
 .task { border-bottom: 1px solid var(--line); }
 .task:last-child { border-bottom: 0; }
-.row { display: flex; align-items: flex-start; gap: 8px; padding: 10px 10px 10px 8px; }
+.row { display: flex; align-items: flex-start; gap: 8px; padding: 10px 10px 10px 8px; touch-action: pan-y; }
 .handle { color: var(--done); padding: 3px 0; touch-action: none; cursor: grab; display: inline-flex; }
 .body { flex: 1; min-width: 0; cursor: pointer; padding-top: 1px; }
 .title { word-wrap: break-word; }
@@ -112,8 +115,16 @@ button.wide { width: 100%; margin: 8px 0; }
 .sub .check { width: 20px; height: 20px; border-radius: 6px; }
 .sub .check.s1::after { width: 9px; }
 
-.is-done > .row .title, .sub.is-done .title { text-decoration: line-through; color: var(--done); }
+/* Drapeau de priorité, à droite de la case (un appui change la priorité) */
+.prio { flex-shrink: 0; border: 0; background: transparent; padding: 3px; margin: 0 -3px; border-radius: 6px; display: inline-flex; color: var(--text); opacity: .3; }
+.prio.p1 { color: var(--prio-high); opacity: 1; }
+.prio.p2 { color: var(--prio-med); opacity: 1; }
+.sub .prio { padding: 2px 3px; }
+.sub .prio svg { width: 16px; height: 16px; }
+
+.is-done > .row .title, .sub.is-done .title { text-decoration: line-through; font-style: italic; color: var(--done); }
 .is-done > .row .chip { opacity: .7; }
+.is-done > .row .prio { opacity: .25; }
 
 /* Terminées */
 .done-section { margin-top: 18px; }
@@ -122,6 +133,16 @@ button.wide { width: 100%; margin: 8px 0; }
 /* Glisser-déposer */
 .sortable-ghost { opacity: .35; }
 .sortable-chosen .row { background: var(--chip); }
+
+/* Glisser à droite (devient sous-tâche) / à gauche (redevient tâche) */
+.swipe-li { position: relative; }
+.swipe-hint { position: absolute; left: 4px; right: 4px; top: 2px; display: flex; align-items: center; gap: 6px; padding: 0 12px; border-radius: 10px;
+  font-size: 14px; font-weight: 600; color: var(--muted); background: var(--chip); transition: background-color .15s, color .15s; }
+.swipe-hint.out { justify-content: flex-end; }
+.swipe-ready > .swipe-hint { background: var(--accent); color: var(--on-accent); }
+.row.swiping { position: relative; z-index: 1; background: var(--card); border-radius: 10px; }
+.row.snap { transition: transform .18s ease; }
+body.swiping { user-select: none; -webkit-user-select: none; }
 
 /* ---------- Fenêtres ---------- */
 dialog { border: 0; border-radius: 18px; background: var(--card); color: var(--text); width: min(560px, 94vw); padding: 18px; max-height: 90dvh; }
@@ -144,7 +165,7 @@ dialog h3 { margin: 4px 0 6px; font-size: 15px; }
 #subsEditList { list-style: none; margin: 0 0 8px; padding: 0; }
 #subsEditList li { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 #subsEditList input { flex: 1; min-width: 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; padding: 6px 2px; font-size: 16px; }
-#subsEditList li.is-done input { text-decoration: line-through; color: var(--done); }
+#subsEditList li.is-done input { text-decoration: line-through; font-style: italic; color: var(--done); }
 #subsEditList .check { width: 20px; height: 20px; border-radius: 6px; }
 .addsub { display: flex; gap: 6px; align-items: center; }
 

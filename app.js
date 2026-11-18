@@ -41,7 +41,9 @@ const ICON = {
   check: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   chevron: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
   cal: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
-  flag: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+  prio: '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 21V3.5" fill="none"/><path d="M5.5 4h12l-2.8 4.5 2.8 4.5h-12z" fill="currentColor"/></svg>',
+  indent: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4v7a3 3 0 0 0 3 3h11M15 10l4 4-4 4"/></svg>',
+  outdent: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M9 8l-4 4 4 4"/></svg>',
   tag: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>',
   subs: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
   trash: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
@@ -175,13 +177,19 @@ function checkHTML(t) {
   return `<button type="button" class="check s${s}" data-check="${t.id}" aria-label="Statut : ${STATUS[s]}">${s === 2 ? ICON.check : ''}</button>`;
 }
 
+// Drapeau de priorité : rouge (haute), orange (moyenne), neutre (basse ou aucune). Un appui change la priorité.
+function prioHTML(t) {
+  const p = t.priority === 1 || t.priority === 2 ? t.priority : 0;
+  const label = t.priority ? `Priorité ${PRIO[t.priority].toLowerCase()}` : 'Sans priorité';
+  return `<button type="button" class="prio p${p}" data-prio="${t.id}" aria-label="${label} (appuyer pour changer)" title="${label}">${ICON.prio}</button>`;
+}
+
 function metaHTML(t, kids) {
   const parts = [];
   if (t.due) {
     const overdue = t.status !== 2 && t.due < toISO(new Date());
     parts.push(`<span class="chip${overdue ? ' overdue' : ''}">${ICON.cal}${esc(dueLabel(t.due))}</span>`);
   }
-  if (t.priority) parts.push(`<span class="chip p${t.priority}">${ICON.flag}${PRIO[t.priority]}</span>`);
   if (t.label && !t.parentId) parts.push(`<span class="chip">${ICON.tag}${esc(t.label)}</span>`);
   if (kids && kids.length) parts.push(`<span class="chip">${ICON.subs}${kids.filter((k) => k.status === 2).length}/${kids.length}</span>`);
   return parts.length ? `<div class="meta">${parts.join('')}</div>` : '';
@@ -191,6 +199,7 @@ function subHTML(k, canDrag) {
   return `<li class="sub${k.status === 2 ? ' is-done' : ''}" data-id="${k.id}"><div class="row">
     ${canDrag ? `<span class="shandle handle" aria-hidden="true">${ICON.grip}</span>` : ''}
     ${checkHTML(k)}
+    ${prioHTML(k)}
     <div class="body" data-edit="${k.id}"><div class="title">${esc(k.title)}</div>${metaHTML(k)}</div>
   </div></li>`;
 }
@@ -203,6 +212,7 @@ function taskHTML(t, mode) {
     <div class="row">
       ${mode === 'custom' && !done ? `<span class="handle phandle" aria-hidden="true">${ICON.grip}</span>` : ''}
       ${checkHTML(t)}
+      ${prioHTML(t)}
       <div class="body" data-edit="${t.id}"><div class="title">${esc(t.title)}</div>${metaHTML(t, kids)}</div>
       ${kids.length ? `<button type="button" class="toggle${isCollapsed ? '' : ' open'}" data-toggle="${t.id}" aria-label="Afficher ou masquer les sous-tâches">${ICON.chevron}</button>` : ''}
     </div>
@@ -288,6 +298,114 @@ function persistOrder(ul) {
   if (changed) save(batch.commit());
 }
 
+/* ---------- Glisser à droite : devient sous-tâche de la tâche du dessus ; à gauche : redevient une tâche ---------- */
+const SWIPE_START = 12; // px avant de reconnaître un glissement horizontal
+const SWIPE_DONE = 64; // px à atteindre pour valider
+let swipe = null;
+let swallowClickUntil = 0;
+
+$('#activeList').addEventListener('pointerdown', (e) => {
+  if (swipe || dragging || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  if (e.target.closest('.handle')) return; // la poignée sert au glisser-déposer vertical
+  const row = e.target.closest('.row');
+  const li = row && row.parentElement;
+  if (!li || !tasks.has(li.dataset.id)) return;
+  let dir = 0;
+  let targetId = null;
+  if (li.classList.contains('sub')) dir = -1;
+  else if (li.previousElementSibling?.classList.contains('task')) { dir = 1; targetId = li.previousElementSibling.dataset.id; }
+  if (!dir) return;
+  swipe = { id: li.dataset.id, li, row, dir, targetId, x: e.clientX, y: e.clientY, dx: 0, active: false, pointerId: e.pointerId };
+});
+
+window.addEventListener('pointermove', (e) => {
+  const s = swipe;
+  if (!s || e.pointerId !== s.pointerId) return;
+  if (e.pointerType === 'mouse' && e.buttons === 0) { endSwipe({ type: 'pointercancel', pointerId: e.pointerId }); return; }
+  const dx = e.clientX - s.x;
+  const dy = e.clientY - s.y;
+  if (!s.active) {
+    if (Math.abs(dx) < SWIPE_START && Math.abs(dy) < SWIPE_START) return;
+    // Geste vertical (défilement) ou dans le mauvais sens : on laisse faire
+    if (Math.abs(dy) >= Math.abs(dx) || Math.sign(dx) !== s.dir || !s.row.isConnected) { swipe = null; return; }
+    s.active = true;
+    dragging = true; // suspend les rafraîchissements pendant le geste
+    window.getSelection()?.removeAllRanges();
+    document.body.classList.add('swiping');
+    s.hint = document.createElement('div');
+    s.hint.className = 'swipe-hint ' + (s.dir > 0 ? 'in' : 'out');
+    s.hint.innerHTML = s.dir > 0 ? ICON.indent : ICON.outdent;
+    s.hint.style.height = (s.row.offsetHeight - 4) + 'px';
+    s.li.classList.add('swipe-li');
+    s.li.prepend(s.hint);
+    s.row.classList.add('swiping');
+    try { s.row.setPointerCapture(e.pointerId); } catch (err) { /* sans importance */ }
+  }
+  let d = s.dir > 0 ? Math.max(0, dx) : Math.min(0, dx);
+  if (Math.abs(d) > SWIPE_DONE) d = Math.sign(d) * (SWIPE_DONE + (Math.abs(d) - SWIPE_DONE) * 0.35); // résistance
+  s.dx = d;
+  s.row.style.transform = `translateX(${d}px)`;
+  s.li.classList.toggle('swipe-ready', Math.abs(d) >= SWIPE_DONE);
+});
+
+function endSwipe(e) {
+  const s = swipe;
+  if (!s || e.pointerId !== s.pointerId) return;
+  swipe = null;
+  if (!s.active) return;
+  swallowClickUntil = Date.now() + 400; // évite d'ouvrir la fiche en relâchant
+  document.body.classList.remove('swiping');
+  dragging = false;
+  const validated = e.type === 'pointerup' && Math.abs(s.dx) >= SWIPE_DONE;
+  const applied = validated && (s.dir > 0 ? makeSubtask(s.id, s.targetId) : makeTopLevel(s.id));
+  if (applied) { pendingRender = false; render(); return; }
+  s.row.classList.add('snap'); // retour en place
+  s.row.style.transform = 'translateX(0)';
+  setTimeout(() => {
+    s.hint?.remove();
+    s.row.classList.remove('swiping', 'snap');
+    s.row.style.transform = '';
+    s.li.classList.remove('swipe-li', 'swipe-ready');
+    if (pendingRender) { pendingRender = false; render(); }
+  }, 180);
+}
+window.addEventListener('pointerup', endSwipe);
+window.addEventListener('pointercancel', endSwipe);
+document.addEventListener('click', (e) => {
+  if (Date.now() < swallowClickUntil) { e.stopPropagation(); e.preventDefault(); swallowClickUntil = 0; }
+}, true);
+
+function makeSubtask(id, parentId) {
+  const t = tasks.get(id);
+  const p = tasks.get(parentId);
+  if (!t || !p || t.parentId || p.parentId || id === parentId) return false;
+  if (childrenOf(id).length) {
+    toast(`« ${t.title} » a déjà des sous-tâches : elle ne peut pas devenir une sous-tâche.`, 3500);
+    return false;
+  }
+  const position = Math.max(0, ...childrenOf(parentId).map((k) => k.position ?? 0)) + 1000;
+  // Une sous-tâche n'a pas d'étiquette (elle suit celle de sa tâche parente)
+  const changes = { parentId, label: null, position, updatedAt: serverTimestamp() };
+  Object.assign(t, changes, { updatedAt: t.updatedAt }); // affichage immédiat, sans attendre la base
+  save(writeBatch(db).update(taskRef(id), changes).commit());
+  if (collapsed.delete(parentId)) localStorage.setItem('collapsed', JSON.stringify([...collapsed]));
+  return true;
+}
+
+function makeTopLevel(id) {
+  const t = tasks.get(id);
+  if (!t || !t.parentId) return false;
+  const p = tasks.get(t.parentId);
+  // Se place juste après son ancienne tâche parente et reprend son étiquette (reste visible si un filtre est actif)
+  const pPos = p?.position ?? 0;
+  const after = [...tasks.values()].filter((x) => x.space === t.space && !x.parentId && (x.position ?? 0) > pPos).map((x) => x.position);
+  const position = after.length ? (pPos + Math.min(...after)) / 2 : pPos + 1000;
+  const changes = { parentId: null, label: p?.label ?? null, position, updatedAt: serverTimestamp() };
+  Object.assign(t, changes, { updatedAt: t.updatedAt });
+  save(writeBatch(db).update(taskRef(id), changes).commit());
+  return true;
+}
+
 /* ---------- Actions ---------- */
 function setSpace(s) {
   space = s;
@@ -308,6 +426,14 @@ function cycleStatus(id) {
     });
   }
   save(batch.commit());
+}
+
+// Appui sur le drapeau : neutre → haute → moyenne → neutre (« basse » reste réglable dans la fiche)
+function cyclePriority(id) {
+  const t = tasks.get(id);
+  if (!t) return;
+  const next = t.priority === 1 ? 2 : t.priority === 2 ? null : 1;
+  save(writeBatch(db).update(taskRef(id), { priority: next, updatedAt: serverTimestamp() }).commit());
 }
 
 function addTask(text) {
@@ -444,6 +570,8 @@ $('#newSubInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { 
 function onListClick(e) {
   const chk = e.target.closest('[data-check]');
   if (chk) { cycleStatus(chk.dataset.check); return; }
+  const prio = e.target.closest('[data-prio]');
+  if (prio) { cyclePriority(prio.dataset.prio); return; }
   const tog = e.target.closest('[data-toggle]');
   if (tog) {
     const id = tog.dataset.toggle;
