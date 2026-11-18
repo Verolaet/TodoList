@@ -16,6 +16,7 @@
       if (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) h.classList.add('dark');
     })();
   </script>
+  <script src="version.js"></script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -27,6 +28,7 @@
       <p>Pro et perso, au même endroit.</p>
       <button id="loginBtn" class="primary big">Se connecter avec Google</button>
       <p id="loginError" class="error" hidden></p>
+      <p class="version" data-version></p>
     </div>
   </main>
 
@@ -75,6 +77,8 @@
       </div>
       <div class="card list-card"><ul id="doneList" class="list"></ul></div>
     </section>
+
+    <footer class="version" data-version></footer>
   </div>
 
   <datalist id="labelsList"></datalist>
@@ -137,6 +141,7 @@
     </div>
     <button type="button" id="exportBtn" class="wide">Exporter mes tâches (CSV)</button>
     <p class="muted small">Connectée : <span id="userEmail"></span></p>
+    <p class="muted small" data-version></p>
     <div class="actions">
       <button type="button" id="logoutBtn" class="danger">Se déconnecter</button>
       <span class="spacer"></span>

@@ -82,6 +82,10 @@ function dueLabel(iso) {
   return d.toLocaleDateString('fr-FR', opts);
 }
 
+/* ---------- Version (version.js, mise à jour à chaque commit) ---------- */
+const VERSION_TXT = self.APP_BUILD ? `Version ${self.APP_BUILD} · ${self.APP_DATE}` : 'Version inconnue';
+document.querySelectorAll('[data-version]').forEach((el) => { el.textContent = VERSION_TXT; });
+
 /* ---------- Thème ---------- */
 const mq = matchMedia('(prefers-color-scheme: dark)');
 function applyTheme() {
@@ -300,7 +304,7 @@ function persistOrder(ul) {
 
 /* ---------- Glisser à droite : devient sous-tâche de la tâche du dessus ; à gauche : redevient une tâche ---------- */
 const SWIPE_START = 12; // px avant de reconnaître un glissement horizontal
-const SWIPE_DONE = 64; // px à atteindre pour valider
+const SWIPE_DONE = 48; // px à atteindre pour valider (assez court pour glisser à gauche sur un petit écran)
 let swipe = null;
 let swallowClickUntil = 0;
 
@@ -720,5 +724,6 @@ if ('serviceWorker' in navigator) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {});
   });
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  // updateViaCache 'none' : version.js (importé par sw.js) est toujours vérifié auprès du serveur
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {}));
 }

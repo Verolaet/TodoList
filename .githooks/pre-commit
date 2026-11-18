@@ -1,0 +1,11 @@
+#!/bin/sh
+# Avant chaque commit : augmente le numéro de version et note la date et l'heure dans version.js.
+# Le nouveau numéro change aussi le nom du cache du service worker, ce qui déclenche la mise à jour de l'appli.
+# Activation (une fois par copie du dépôt) : git config core.hooksPath .githooks
+f="$(git rev-parse --show-toplevel)/version.js"
+n=$(sed -n 's/^self\.APP_BUILD = \([0-9][0-9]*\);.*/\1/p' "$f")
+n=$(( ${n:-0} + 1 ))
+d=$(date '+%d/%m/%Y %H:%M')
+printf '%s\n%s\n%s\n' "// Version de l'appli : mise à jour automatiquement à chaque commit (voir .githooks/pre-commit)." \
+  "self.APP_BUILD = $n;" "self.APP_DATE = '$d';" > "$f"
+git add "$f"

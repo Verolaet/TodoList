@@ -1,8 +1,11 @@
 // Service worker : met l'appli en cache pour une ouverture instantanée, même hors ligne.
 // Les données (Firestore) ne passent pas par ici : Firebase gère son propre cache local.
-const CACHE = 'todo-v4';
+// Le numéro de version (version.js, augmenté automatiquement à chaque commit) donne son nom au cache :
+// une nouvelle version = un nouveau cache = l'appli se met à jour.
+importScripts('./version.js');
+const CACHE = 'todo-v' + self.APP_BUILD;
 const SHELL = [
-  './', './index.html', './styles.css', './app.js', './config.js', './dateparse.js',
+  './', './index.html', './styles.css', './app.js', './config.js', './dateparse.js', './version.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
 ];
 

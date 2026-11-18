@@ -10,7 +10,11 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
   Le projet contient aussi une Realtime Database inutilisée : ne pas l'utiliser.
 - Auth : connexion Google (Firebase Auth), session persistante. Un seul compte autorisé via `firestore.rules` (adresse e-mail à renseigner).
 - Le compte qui administre Firebase (adresse secondaire) est distinct du compte de connexion à l'appli (adresse principale).
-- Hors ligne : cache Firestore persistant (IndexedDB) + service worker (`sw.js`, stale-while-revalidate). Penser à incrémenter `CACHE` dans `sw.js` à chaque livraison.
+- Hors ligne : cache Firestore persistant (IndexedDB) + service worker (`sw.js`, stale-while-revalidate).
+  Version : `version.js` (`APP_BUILD`, `APP_DATE`), affichée en pied de page, dans les Réglages et sur l'écran de connexion ;
+  `sw.js` l'importe et nomme son cache `todo-v<APP_BUILD>`. Le hook `.githooks/pre-commit` augmente le numéro et met la date/heure
+  à chaque commit (activer après un clone : `git config core.hooksPath .githooks`). Un dépôt via l'upload web de GitHub ne passe pas par le hook :
+  augmenter alors `APP_BUILD` à la main, sinon les appareils ne se mettent pas à jour.
   GitHub Pages envoie `Cache-Control: max-age=600` : le SW installe avec `cache: 'reload'` et revérifie nos fichiers en `no-cache`.
   `app.js` recharge la page au `controllerchange` (sauf saisie en cours) et cherche une mise à jour à chaque retour au premier plan.
 - Dépendances CDN : Firebase JS SDK 11.0.2 (gstatic, modules ES), SortableJS 1.15.2 (cdnjs).
@@ -32,7 +36,8 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
   Un appui sur le drapeau fait neutre → haute → moyenne → neutre (« basse » se règle dans la fiche).
 - Glisser une tâche vers la droite (ailleurs que sur la poignée) : elle devient la dernière sous-tâche de la tâche du dessus et perd son étiquette.
   Refusé (message) si elle a déjà des sous-tâches : un seul niveau de sous-tâches. Glisser une sous-tâche vers la gauche : elle redevient
-  une tâche, placée juste après son ancienne parente, et reprend l'étiquette de celle-ci. Seuil 64 px ; fonctionne au doigt et à la souris.
+  une tâche, placée juste après son ancienne parente, et reprend l'étiquette de celle-ci. Seuil 48 px (64 était trop long vers la gauche sur téléphone) ; fonctionne au doigt et à la souris.
+- Les poignées ⠿ des tâches n'apparaissent qu'en tri « Personnalisé » (celles des sous-tâches, toujours).
 - Cocher une tâche termine toutes ses sous-tâches. L'inverse n'est pas automatique.
 - Terminées : barrées et en italique, regroupées en bas ; bouton « Supprimer les terminées » (avec confirmation) qui supprime les tâches parentes terminées et leurs sous-tâches.
 - Tris : personnalisé (glisser-déposer, uniquement dans ce mode), par échéance, par priorité ; mémorisé par espace.

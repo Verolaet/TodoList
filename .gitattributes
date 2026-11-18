@@ -1,0 +1,2 @@
+# Le script du hook doit garder des fins de ligne Unix pour fonctionner
+.githooks/* text eol=lf
