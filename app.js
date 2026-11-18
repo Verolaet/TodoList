@@ -106,7 +106,8 @@ function statusFields(t, next) {
 }
 
 /* ---------- Version (version.js, mise à jour à chaque commit) ---------- */
-const VERSION_TXT = self.APP_BUILD ? `Version ${self.APP_BUILD} · ${self.APP_DATE}` : 'Version inconnue';
+// Affichage : « Version du jj/mm/aaaa hh:mm » (le numéro APP_BUILD ne sert qu'au nom du cache du service worker)
+const VERSION_TXT = self.APP_DATE ? `Version du ${self.APP_DATE}` : 'Version inconnue';
 document.querySelectorAll('[data-version]').forEach((el) => { el.textContent = VERSION_TXT; });
 
 /* ---------- Thème ---------- */
@@ -215,7 +216,7 @@ function prioHTML(t) {
 
 function metaHTML(t, kids) {
   const parts = [];
-  if (t.status === 3 && t.pausedAt) parts.push(`<span class="chip">${ICON.pause}en pause depuis ${esc(sinceLabel(t.pausedAt))}</span>`);
+  if (t.status === 3 && t.pausedAt) parts.push(`<span class="chip" title="En pause">${ICON.pause}depuis ${esc(sinceLabel(t.pausedAt))}</span>`);
   if (t.due) {
     const overdue = t.status !== 2 && t.due < toISO(new Date());
     parts.push(`<span class="chip${overdue ? ' overdue' : ''}">${ICON.cal}${esc(dueLabel(t.due))}</span>`);

@@ -11,7 +11,8 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Auth : connexion Google (Firebase Auth), session persistante. Un seul compte autorisé via `firestore.rules` (adresse e-mail à renseigner).
 - Le compte qui administre Firebase (adresse secondaire) est distinct du compte de connexion à l'appli (adresse principale).
 - Hors ligne : cache Firestore persistant (IndexedDB) + service worker (`sw.js`, stale-while-revalidate).
-  Version : `version.js` (`APP_BUILD`, `APP_DATE`), affichée en pied de page, dans les Réglages et sur l'écran de connexion ;
+  Version : `version.js` (`APP_BUILD`, `APP_DATE`). Affichée « Version du jj/mm/aaaa hh:mm » (sans numéro, demande de Laetitia)
+  en pied de page, dans les Réglages et sur l'écran de connexion ;
   `sw.js` l'importe et nomme son cache `todo-v<APP_BUILD>`. Le hook `.githooks/pre-commit` augmente le numéro et met la date/heure
   à chaque commit (activer après un clone : `git config core.hooksPath .githooks`). Un dépôt via l'upload web de GitHub ne passe pas par le hook :
   augmenter alors `APP_BUILD` à la main, sinon les appareils ne se mettent pas à jour.
@@ -41,7 +42,7 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
   une tâche, placée juste après son ancienne parente, et reprend l'étiquette de celle-ci. Seuil 48 px (64 était trop long vers la gauche sur téléphone) ; fonctionne au doigt et à la souris.
 - Les poignées ⠿ des tâches n'apparaissent qu'en tri « Personnalisé » (celles des sous-tâches, toujours).
 - En pause (statut 3, validé le 18/11/2026, présentation « section à part ») : case en pointillés avec ‖, titre grisé non barré,
-  puce « en pause depuis … ». Appui long sur la case (550 ms ; clic droit sur PC) : met en pause / reprend (→ en cours) ;
+  puce courte « ‖ depuis … » (aujourd'hui / hier / le 3 nov.). Appui long sur la case (550 ms ; clic droit sur PC) : met en pause / reprend (→ en cours) ;
   aussi via Statut dans la fiche. Appui simple sur une case en pause : reprend (→ en cours). Le cycle normal reste 0 → 1 → 2.
   Les tâches parentes en pause vont dans la section repliable « En pause (n) » entre la liste et les terminées
   (repli mémorisé par appareil : localStorage `pausedCollapsed`), sans poignée ni glisser. Les sous-tâches gardent leur propre statut.
