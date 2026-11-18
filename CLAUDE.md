@@ -38,14 +38,17 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Perso clair : fond #F5C4B3, accent #993C1D. Perso sombre (corail rosé) : fond #5E2A3A, carte #421D29, accent #FF9E9A.
 - Le rendu diffère entre téléphone et PC : ajuster en conditions réelles si Laetitia le demande.
 
-## Reste à faire pour la mise en ligne
-1. Pousser le code sur `Verolaet/TodoList` (si ce n'est pas déjà fait).
-2. GitHub : Settings → Pages → Deploy from a branch → `main` / root.
-3. Firebase : Authentication → Google activé ; Paramètres → Domaines autorisés → ajouter `verolaet.github.io`.
-4. Renseigner l'adresse e-mail du compte de connexion dans `firestore.rules` (placeholder `TON_ADRESSE@gmail.com`), puis la coller dans Firestore → Règles → Publier.
-5. Test de sécurité : vérifier qu'un autre compte Google reçoit bien « non autorisé ».
-6. Installer la PWA sur Android (Chrome → Installer l'application) et sur PC.
-7. Conseillé : ajouter l'adresse principale comme Propriétaire du projet Firebase (pérennité).
+## État au 18/11/2026
+- En ligne sur https://verolaet.github.io/TodoList/ (GitHub Pages, branche main, racine). Connexion et création de tâches validées sur PC.
+- Domaine `verolaet.github.io` autorisé dans Firebase Auth. Règles Firestore publiées pour laetih01@gmail.com (copie dans `firestore.rules`).
+- Les fichiers ont été déposés via l'upload web de GitHub (pas de `.nojekyll`, non bloquant).
+
+## Reste à faire
+1. Valider sur Android : connexion, synchro avec le PC, installation de la PWA, dictée.
+2. Test de sécurité : un autre compte Google doit voir « non autorisé ».
+3. Conseillé : ajouter l'adresse principale comme Propriétaire du projet Firebase (pérennité).
+4. Ajuster les couleurs en conditions réelles si besoin (rendu différent téléphone / PC).
+5. V2 : import CSV.
 
 ## Préférences de Laetitia
 - Poser des questions de clarification avant de se lancer si nécessaire ; réponses structurées en puces.

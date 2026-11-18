@@ -5,7 +5,7 @@ service cloud.firestore {
     match /users/{uid}/{document=**} {
       allow read, write: if request.auth != null
         && request.auth.uid == uid
-        && request.auth.token.email == "TON_ADRESSE@gmail.com"
+        && request.auth.token.email == "laetih01@gmail.com"
         && request.auth.token.email_verified == true;
     }
   }
