@@ -21,14 +21,16 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - La config Firebase (`config.js`) est publique par conception ; la sécurité repose sur les règles Firestore.
 
 ## Modèle de données
-- `users/{uid}/tasks/{id}` : `space` ('pro'|'perso'), `title`, `status` (0 non démarrée, 1 en cours, 2 terminée), `due` ('YYYY-MM-DD'|null),
+- `users/{uid}/tasks/{id}` : `space` ('pro'|'perso'), `title`, `status` (0 non démarrée, 1 en cours, 2 terminée, 3 en pause),
+  `pausedAt` (date de mise en pause, null sinon), `due` ('YYYY-MM-DD'|null),
   `priority` (1 haute, 2 moyenne, 3 basse | null), `label` (string|null, tâches parentes seulement), `parentId` (null | id de la tâche parente),
   `position` (number, ordre personnalisé), `createdAt`, `updatedAt`, `completedAt`.
 - `users/{uid}/meta/settings` : `sort` { pro, perso } ∈ 'custom'|'due'|'priority'.
-- Thème (auto/clair/sombre), espace courant et sous-tâches repliées : localStorage (par appareil).
+- Thème (auto/clair/sombre), espace courant, sous-tâches repliées, sections « En pause » et « Terminées » repliées : localStorage (par appareil).
+- Les instantanés Firestore sont lus avec `serverTimestamps: 'estimate'` (dates estimées tant que le serveur n'a pas confirmé).
 
 ## Spécification fonctionnelle (validée)
-- 2 espaces cloisonnés Pro / Perso (onglets). Une seule liste par espace, filtrable par étiquette (1 étiquette max par tâche, propre à l'espace).
+- 2 espaces cloisonnés Perso / Pro (onglets, Perso en premier et par défaut ; même ordre pour les raccourcis d'icône). Une seule liste par espace, filtrable par étiquette (1 étiquette max par tâche, propre à l'espace).
 - Nom de l'appli : « Laeti’s todo » (apostrophe typographique ; manifest `name` et `short_name`, titre de la page, écran de connexion).
   Écran de démarrage Android : `background_color` et `theme_color` = #FFA9A8 (rose de l'icône).
 - Tâche : case à 3 états (vide → trait → coché, au clic), titre obligatoire, échéance, priorité, étiquette, sous-tâches (même case à 3 états).
@@ -38,8 +40,13 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
   Refusé (message) si elle a déjà des sous-tâches : un seul niveau de sous-tâches. Glisser une sous-tâche vers la gauche : elle redevient
   une tâche, placée juste après son ancienne parente, et reprend l'étiquette de celle-ci. Seuil 48 px (64 était trop long vers la gauche sur téléphone) ; fonctionne au doigt et à la souris.
 - Les poignées ⠿ des tâches n'apparaissent qu'en tri « Personnalisé » (celles des sous-tâches, toujours).
-- Cocher une tâche termine toutes ses sous-tâches. L'inverse n'est pas automatique.
-- Terminées : barrées et en italique, regroupées en bas ; bouton « Supprimer les terminées » (avec confirmation) qui supprime les tâches parentes terminées et leurs sous-tâches.
+- En pause (statut 3, validé le 18/11/2026, présentation « section à part ») : case en pointillés avec ‖, titre grisé non barré,
+  puce « en pause depuis … ». Appui long sur la case (550 ms ; clic droit sur PC) : met en pause / reprend (→ en cours) ;
+  aussi via Statut dans la fiche. Appui simple sur une case en pause : reprend (→ en cours). Le cycle normal reste 0 → 1 → 2.
+  Les tâches parentes en pause vont dans la section repliable « En pause (n) » entre la liste et les terminées
+  (repli mémorisé par appareil : localStorage `pausedCollapsed`), sans poignée ni glisser. Les sous-tâches gardent leur propre statut.
+- Cocher une tâche termine toutes ses sous-tâches (y compris en pause). L'inverse n'est pas automatique.
+- Terminées : barrées et en italique, regroupées en bas dans une section repliable « Terminées (n) » (repli mémorisé par appareil : `doneCollapsed`) ; bouton « Supprimer les terminées » (avec confirmation) qui supprime les tâches parentes terminées et leurs sous-tâches.
 - Tris : personnalisé (glisser-déposer, uniquement dans ce mode), par échéance, par priorité ; mémorisé par espace.
 - Saisie rapide (validée par la touche Entrée, pas de bouton « + ») au clavier ou à la dictée (Web Speech API, fr-FR) ; reconnaissance des dates en français (`dateparse.js` : « demain », « pour vendredi », « le 25 », « 3 décembre », « dans 3 jours »…). Les nouvelles tâches sont ajoutées en haut.
 - Édition complète d'une tâche au clic (titre, statut, échéance, priorité, étiquette, sous-tâches).

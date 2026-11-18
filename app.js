@@ -25,9 +25,11 @@ const html = document.documentElement;
 let user = null;
 let tasks = new Map();
 let settings = { sort: { pro: 'custom', perso: 'custom' } };
-let space = localStorage.getItem('space') === 'perso' ? 'perso' : 'pro';
+let space = localStorage.getItem('space') === 'pro' ? 'pro' : 'perso'; // Perso par défaut (premier onglet)
 let labelFilter = { pro: null, perso: null };
 let collapsed = new Set(JSON.parse(localStorage.getItem('collapsed') || '[]'));
+let pausedCollapsed = localStorage.getItem('pausedCollapsed') === '1';
+let doneCollapsed = localStorage.getItem('doneCollapsed') === '1';
 let unsubs = [];
 let dragging = false;
 let pendingRender = false;
@@ -43,13 +45,14 @@ const ICON = {
   cal: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
   prio: '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 21V3.5" fill="none"/><path d="M5.5 4h12l-2.8 4.5 2.8 4.5h-12z" fill="currentColor"/></svg>',
   indent: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4v7a3 3 0 0 0 3 3h11M15 10l4 4-4 4"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M9 6v12M15 6v12"/></svg>',
   outdent: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M9 8l-4 4 4 4"/></svg>',
   tag: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>',
   subs: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
   trash: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
 };
 const PRIO = { 1: 'Haute', 2: 'Moyenne', 3: 'Basse' };
-const STATUS = ['Non démarrée', 'En cours', 'Terminée'];
+const STATUS = ['Non démarrée', 'En cours', 'Terminée', 'En pause'];
 
 /* ---------- Outils ---------- */
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -80,6 +83,26 @@ function dueLabel(iso) {
   const opts = { weekday: 'short', day: 'numeric', month: 'short' };
   if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
   return d.toLocaleDateString('fr-FR', opts);
+}
+// « aujourd'hui », « hier » ou « le 3 nov. » (pour « en pause depuis … »)
+function sinceLabel(ts) {
+  if (!ts || typeof ts.toDate !== 'function') return '';
+  const d = ts.toDate();
+  const now = new Date();
+  if (toISO(d) === toISO(now)) return "aujourd'hui";
+  if (toISO(d) === toISO(addDays(now, -1))) return 'hier';
+  const opts = { day: 'numeric', month: 'short' };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+  return 'le ' + d.toLocaleDateString('fr-FR', opts);
+}
+// Champs à enregistrer quand une tâche passe au statut `next` (0 non démarrée, 1 en cours, 2 terminée, 3 en pause)
+function statusFields(t, next) {
+  return {
+    status: next,
+    completedAt: next === 2 ? (t.status === 2 ? t.completedAt ?? serverTimestamp() : serverTimestamp()) : null,
+    pausedAt: next === 3 ? (t.status === 3 ? t.pausedAt ?? serverTimestamp() : serverTimestamp()) : null,
+    updatedAt: serverTimestamp(),
+  };
 }
 
 /* ---------- Version (version.js, mise à jour à chaque commit) ---------- */
@@ -137,7 +160,8 @@ onAuthStateChanged(auth, (u) => {
   unsubs.push(onSnapshot(tasksCol(), (snap) => {
     $('#dbError').hidden = true;
     tasks = new Map();
-    snap.forEach((d) => tasks.set(d.id, { id: d.id, ...d.data() }));
+    // 'estimate' : les dates pas encore confirmées par le serveur (hors ligne) sont estimées au lieu de valoir null
+    snap.forEach((d) => tasks.set(d.id, { id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
     requestRender();
     if (firstSnapshot) { firstSnapshot = false; handleStartNew(); }
   }, dbError));
@@ -190,6 +214,7 @@ function prioHTML(t) {
 
 function metaHTML(t, kids) {
   const parts = [];
+  if (t.status === 3 && t.pausedAt) parts.push(`<span class="chip">${ICON.pause}en pause depuis ${esc(sinceLabel(t.pausedAt))}</span>`);
   if (t.due) {
     const overdue = t.status !== 2 && t.due < toISO(new Date());
     parts.push(`<span class="chip${overdue ? ' overdue' : ''}">${ICON.cal}${esc(dueLabel(t.due))}</span>`);
@@ -200,7 +225,7 @@ function metaHTML(t, kids) {
 }
 
 function subHTML(k, canDrag) {
-  return `<li class="sub${k.status === 2 ? ' is-done' : ''}" data-id="${k.id}"><div class="row">
+  return `<li class="sub${k.status === 2 ? ' is-done' : k.status === 3 ? ' is-paused' : ''}" data-id="${k.id}"><div class="row">
     ${canDrag ? `<span class="shandle handle" aria-hidden="true">${ICON.grip}</span>` : ''}
     ${checkHTML(k)}
     ${prioHTML(k)}
@@ -212,15 +237,17 @@ function taskHTML(t, mode) {
   const kids = childrenOf(t.id);
   const isCollapsed = collapsed.has(t.id);
   const done = t.status === 2;
-  return `<li class="task${done ? ' is-done' : ''}" data-id="${t.id}">
+  const paused = t.status === 3;
+  const movable = !done && !paused; // les tâches terminées ou en pause ne se déplacent pas
+  return `<li class="task${done ? ' is-done' : paused ? ' is-paused' : ''}" data-id="${t.id}">
     <div class="row">
-      ${mode === 'custom' && !done ? `<span class="handle phandle" aria-hidden="true">${ICON.grip}</span>` : ''}
+      ${mode === 'custom' && movable ? `<span class="handle phandle" aria-hidden="true">${ICON.grip}</span>` : ''}
       ${checkHTML(t)}
       ${prioHTML(t)}
       <div class="body" data-edit="${t.id}"><div class="title">${esc(t.title)}</div>${metaHTML(t, kids)}</div>
       ${kids.length ? `<button type="button" class="toggle${isCollapsed ? '' : ' open'}" data-toggle="${t.id}" aria-label="Afficher ou masquer les sous-tâches">${ICON.chevron}</button>` : ''}
     </div>
-    ${kids.length && !isCollapsed ? `<ul class="subs" data-parent="${t.id}">${kids.map((k) => subHTML(k, !done)).join('')}</ul>` : ''}
+    ${kids.length && !isCollapsed ? `<ul class="subs" data-parent="${t.id}">${kids.map((k) => subHTML(k, movable)).join('')}</ul>` : ''}
   </li>`;
 }
 
@@ -247,18 +274,31 @@ function render() {
 
   let parents = inSpace.filter((t) => !t.parentId);
   if (filter) parents = parents.filter((t) => t.label === filter);
-  const active = parents.filter((t) => t.status !== 2);
+  const active = parents.filter((t) => t.status !== 2 && t.status !== 3);
+  const paused = parents.filter((t) => t.status === 3);
   const done = parents.filter((t) => t.status === 2);
-  if (mode === 'due') active.sort((a, b) => cmpDue(a, b) || byPos(a, b));
-  else if (mode === 'priority') active.sort((a, b) => cmpPrio(a, b) || cmpDue(a, b) || byPos(a, b));
-  else active.sort(byPos);
+  const sortFn = mode === 'due' ? (a, b) => cmpDue(a, b) || byPos(a, b)
+    : mode === 'priority' ? (a, b) => cmpPrio(a, b) || cmpDue(a, b) || byPos(a, b)
+      : byPos;
+  active.sort(sortFn);
+  paused.sort(sortFn);
   done.sort((a, b) => tsOf(b.completedAt) - tsOf(a.completedAt));
 
   $('#activeList').innerHTML = active.map((t) => taskHTML(t, mode)).join('');
   $('#emptyState').hidden = active.length > 0;
+  // Section « En pause » (repliable, état mémorisé sur l'appareil)
+  $('#pausedSection').hidden = paused.length === 0;
+  $('#pausedTitle').textContent = `En pause (${paused.length})`;
+  $('#pausedToggle').classList.toggle('open', !pausedCollapsed);
+  $('#pausedToggle').setAttribute('aria-expanded', String(!pausedCollapsed));
+  $('#pausedCard').hidden = pausedCollapsed;
+  $('#pausedList').innerHTML = pausedCollapsed ? '' : paused.map((t) => taskHTML(t, mode)).join('');
   $('#doneSection').hidden = done.length === 0;
   $('#doneTitle').textContent = `Terminées (${done.length})`;
-  $('#doneList').innerHTML = done.map((t) => taskHTML(t, mode)).join('');
+  $('#doneToggle').classList.toggle('open', !doneCollapsed);
+  $('#doneToggle').setAttribute('aria-expanded', String(!doneCollapsed));
+  $('#doneCard').hidden = doneCollapsed;
+  $('#doneList').innerHTML = doneCollapsed ? '' : done.map((t) => taskHTML(t, mode)).join('');
 
   setupSortables(mode);
   if ($('#editor').open) renderSubsEditor();
@@ -421,15 +461,24 @@ function setSpace(s) {
 function cycleStatus(id) {
   const t = tasks.get(id);
   if (!t) return;
-  const next = ((t.status || 0) + 1) % 3;
+  const cur = t.status || 0;
+  const next = cur === 3 ? 1 : (cur + 1) % 3; // une tâche en pause reprend « en cours »
   const batch = writeBatch(db);
-  batch.update(taskRef(id), { status: next, completedAt: next === 2 ? serverTimestamp() : null, updatedAt: serverTimestamp() });
+  batch.update(taskRef(id), statusFields(t, next));
   if (!t.parentId && next === 2) {
-    childrenOf(id).forEach((k) => {
-      if (k.status !== 2) batch.update(taskRef(k.id), { status: 2, completedAt: serverTimestamp(), updatedAt: serverTimestamp() });
-    });
+    childrenOf(id).forEach((k) => { if (k.status !== 2) batch.update(taskRef(k.id), statusFields(k, 2)); });
   }
   save(batch.commit());
+}
+
+// Appui long sur la case (clic droit sur PC) : met en pause, ou reprend (« en cours ») une tâche en pause
+function togglePause(id) {
+  const t = tasks.get(id);
+  if (!t) return;
+  const next = t.status === 3 ? 1 : 3;
+  save(writeBatch(db).update(taskRef(id), statusFields(t, next)).commit());
+  navigator.vibrate?.(15);
+  toast(next === 3 ? `« ${t.title} » est en pause` : `« ${t.title} » reprend`);
 }
 
 // Appui sur le drapeau : neutre → haute → moyenne → neutre (« basse » reste réglable dans la fiche)
@@ -508,7 +557,7 @@ function renderSubsEditor() {
   const list = $('#subsEditList');
   if (!editingId || list.contains(document.activeElement)) return;
   const kids = childrenOf(editingId);
-  list.innerHTML = kids.map((k) => `<li class="${k.status === 2 ? 'is-done' : ''}" data-id="${k.id}">
+  list.innerHTML = kids.map((k) => `<li class="${k.status === 2 ? 'is-done' : k.status === 3 ? 'is-paused' : ''}" data-id="${k.id}">
       ${checkHTML(k)}
       <input type="text" value="${esc(k.title)}" data-subtitle="${k.id}" aria-label="Sous-tâche">
       <button type="button" class="icon-btn" data-subdel="${k.id}" aria-label="Supprimer la sous-tâche">${ICON.trash}</button>
@@ -526,12 +575,10 @@ $('#editForm').addEventListener('submit', (e) => {
   const label = t.parentId ? null : (f.label.value.trim() || null);
   const batch = writeBatch(db);
   batch.update(taskRef(t.id), {
-    title, status, due: f.due.value || null, priority: f.priority.value ? +f.priority.value : null, label,
-    completedAt: status === 2 ? (t.status === 2 ? t.completedAt ?? serverTimestamp() : serverTimestamp()) : null,
-    updatedAt: serverTimestamp(),
+    title, due: f.due.value || null, priority: f.priority.value ? +f.priority.value : null, label, ...statusFields(t, status),
   });
   if (!t.parentId && status === 2 && t.status !== 2) {
-    childrenOf(t.id).forEach((k) => { if (k.status !== 2) batch.update(taskRef(k.id), { status: 2, completedAt: serverTimestamp() }); });
+    childrenOf(t.id).forEach((k) => { if (k.status !== 2) batch.update(taskRef(k.id), statusFields(k, 2)); });
   }
   save(batch.commit());
   if (label && labelFilter[space] && label !== labelFilter[space]) labelFilter[space] = null;
@@ -588,7 +635,53 @@ function onListClick(e) {
   if (ed) openEditor(ed.dataset.edit);
 }
 $('#activeList').addEventListener('click', onListClick);
+$('#pausedList').addEventListener('click', onListClick);
 $('#doneList').addEventListener('click', onListClick);
+$('#pausedToggle').addEventListener('click', () => {
+  pausedCollapsed = !pausedCollapsed;
+  localStorage.setItem('pausedCollapsed', pausedCollapsed ? '1' : '0');
+  render();
+});
+$('#doneToggle').addEventListener('click', () => {
+  doneCollapsed = !doneCollapsed;
+  localStorage.setItem('doneCollapsed', doneCollapsed ? '1' : '0');
+  render();
+});
+
+/* ---------- Appui long sur une case (clic droit sur PC) : mettre en pause / reprendre ---------- */
+const LONG_PRESS = 550; // ms
+let press = null;
+let lastLongPress = 0;
+let releasePending = false;
+function longPress(id) {
+  if (Date.now() - lastLongPress < 800) return; // déjà traité (appui long + menu contextuel)
+  lastLongPress = Date.now();
+  releasePending = true;
+  swallowClickUntil = Date.now() + 5000; // ignore le « clic » du relâchement (jusqu'au relâchement, 5 s au plus)
+  togglePause(id);
+}
+document.addEventListener('pointerdown', (e) => {
+  const chk = e.target.closest('[data-check]');
+  if (!chk || e.pointerType === 'mouse') return;
+  clearTimeout(press?.timer);
+  const id = chk.dataset.check;
+  press = { x: e.clientX, y: e.clientY, timer: setTimeout(() => { press = null; longPress(id); }, LONG_PRESS) };
+});
+document.addEventListener('pointermove', (e) => {
+  if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) { clearTimeout(press.timer); press = null; }
+});
+['pointerup', 'pointercancel'].forEach((type) => document.addEventListener(type, () => {
+  if (press) { clearTimeout(press.timer); press = null; }
+  if (releasePending) { releasePending = false; swallowClickUntil = Date.now() + 400; }
+}));
+document.addEventListener('contextmenu', (e) => {
+  const chk = e.target.closest('[data-check]');
+  if (!chk) return;
+  e.preventDefault();
+  if (press) { clearTimeout(press.timer); press = null; }
+  longPress(chk.dataset.check);
+  if (e.pointerType === 'mouse' || !e.pointerType) { releasePending = false; swallowClickUntil = 0; } // clic droit : pas de clic à ignorer
+});
 
 document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => setSpace(b.dataset.space)));
 $('#labelChips').addEventListener('click', (e) => {
@@ -677,13 +770,13 @@ $('#exportBtn').addEventListener('click', exportCSV);
 
 function exportCSV() {
   const fmtTs = (t) => (t && typeof t.toDate === 'function' ? t.toDate().toISOString() : '');
-  const header = ['espace', 'id', 'tache_parente', 'titre', 'statut', 'echeance', 'priorite', 'etiquette', 'position', 'creee_le', 'terminee_le'];
+  const header = ['espace', 'id', 'tache_parente', 'titre', 'statut', 'echeance', 'priorite', 'etiquette', 'position', 'creee_le', 'terminee_le', 'en_pause_le'];
   const rows = [header];
   const line = (t) => [t.space, t.id, t.parentId || '', t.title, STATUS[t.status || 0], t.due || '', t.priority ? PRIO[t.priority] : '',
-    t.label || '', t.position ?? '', fmtTs(t.createdAt), fmtTs(t.completedAt)];
+    t.label || '', t.position ?? '', fmtTs(t.createdAt), fmtTs(t.completedAt), t.status === 3 ? fmtTs(t.pausedAt) : ''];
   for (const s of ['pro', 'perso']) {
     const parents = [...tasks.values()].filter((t) => t.space === s && !t.parentId)
-      .sort((a, b) => ((a.status === 2) - (b.status === 2)) || byPos(a, b));
+      .sort((a, b) => ((a.status === 2) - (b.status === 2)) || ((a.status === 3) - (b.status === 3)) || byPos(a, b));
     for (const p of parents) {
       rows.push(line(p));
       childrenOf(p.id).forEach((k) => rows.push(line(k)));

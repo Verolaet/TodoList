@@ -114,6 +114,11 @@ button.wide { width: 100%; margin: 8px 0; }
 .check.s2 { background: var(--accent); }
 .sub .check { width: 20px; height: 20px; border-radius: 6px; }
 .sub .check.s1::after { width: 9px; }
+.check { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } /* appui long sans menu du téléphone */
+/* En pause : case en pointillés avec le symbole ‖ */
+.check.s3 { border-style: dashed; border-color: var(--done); }
+.check.s3::after { content: ""; width: 9px; height: 10px; box-sizing: border-box; border-left: 2.5px solid var(--done); border-right: 2.5px solid var(--done); }
+.sub .check.s3::after, #subsEditList .check.s3::after { width: 8px; height: 8px; }
 
 /* Drapeau de priorité, à droite de la case (un appui change la priorité) */
 .prio { flex-shrink: 0; border: 0; background: transparent; padding: 3px; margin: 0 -3px; border-radius: 6px; display: inline-flex; color: var(--text); opacity: .3; }
@@ -125,6 +130,13 @@ button.wide { width: 100%; margin: 8px 0; }
 .is-done > .row .title, .sub.is-done .title { text-decoration: line-through; font-style: italic; color: var(--done); }
 .is-done > .row .chip { opacity: .7; }
 .is-done > .row .prio { opacity: .25; }
+.is-paused > .row .title, .sub.is-paused .title { color: var(--done); }
+.is-paused > .row .prio.p1, .is-paused > .row .prio.p2, .sub.is-paused .prio.p1, .sub.is-paused .prio.p2 { opacity: .55; }
+
+/* Titre de section repliable (« En pause ») */
+.section-toggle { border: 0; background: transparent; padding: 0; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--text); }
+.section-toggle svg { transition: transform .15s; color: var(--done); }
+.section-toggle.open svg { transform: rotate(180deg); }
 
 /* Terminées */
 .done-section { margin-top: 18px; }
@@ -166,6 +178,7 @@ dialog h3 { margin: 4px 0 6px; font-size: 15px; }
 #subsEditList li { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 #subsEditList input { flex: 1; min-width: 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; padding: 6px 2px; font-size: 16px; }
 #subsEditList li.is-done input { text-decoration: line-through; font-style: italic; color: var(--done); }
+#subsEditList li.is-paused input { color: var(--done); }
 #subsEditList .check { width: 20px; height: 20px; border-radius: 6px; }
 .addsub { display: flex; gap: 6px; align-items: center; }
 
