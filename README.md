@@ -14,3 +14,4 @@ To-do list personnelle Pro / Perso : PWA hébergée sur GitHub Pages, données d
 - `config.js` : configuration Firebase (publique, non secrète)
 - `firestore.rules` : règles de sécurité à coller dans la console Firebase
 - `sw.js`, `manifest.webmanifest`, `icons/` : installation sur téléphone et PC
+  (dessins sources des icônes : `icons/icon.svg` pour le PC, `icons/icon-maskable.svg` pour Android)

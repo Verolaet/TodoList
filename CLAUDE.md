@@ -38,6 +38,12 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Perso clair : fond #F5C4B3, accent #993C1D. Perso sombre (corail rosé) : fond #5E2A3A, carte #421D29, accent #FF9E9A.
 - Le rendu diffère entre téléphone et PC : ajuster en conditions réelles si Laetitia le demande.
 
+## Icône (validée le 18/11/2026)
+- Modèle « Bonbon » : dégradé rose #FF8FB1 → pêche #FFC3A0, case blanche inclinée avec coche rose #FF6F9C, étoiles dorées #FFE27A.
+- Version ronde à coins transparents pour le PC (`icons/icon.svg` → `icon-192.png`, `icon-512.png`) ;
+  version pleine pour Android (`icons/icon-maskable.svg` → `icon-maskable-512.png`, dessin réduit à 78 % pour rester dans la zone sûre).
+- PNG générées avec Chrome en mode headless (`--screenshot`, `--default-background-color=00000000`). Raccourcis `sc-pro.png` / `sc-perso.png` inchangés.
+
 ## État au 18/11/2026
 - En ligne sur https://verolaet.github.io/TodoList/ (GitHub Pages, branche main, racine). Connexion et création de tâches validées sur PC.
 - Domaine `verolaet.github.io` autorisé dans Firebase Auth. Règles Firestore publiées pour laetih01@gmail.com (copie dans `firestore.rules`).
