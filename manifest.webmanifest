@@ -1,13 +1,13 @@
 {
-  "name": "TodoList",
-  "short_name": "TodoList",
+  "name": "Laeti’s todo",
+  "short_name": "Laeti’s todo",
   "description": "To-do list Pro et Perso",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#3B2659",
-  "theme_color": "#3B2659",
+  "background_color": "#FFA9A8",
+  "theme_color": "#FFA9A8",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },

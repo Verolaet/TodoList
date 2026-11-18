@@ -1,4 +1,4 @@
-# Contexte projet — « TodoList » (to-do list Pro / Perso)
+# Contexte projet — « Laeti’s todo » (to-do list Pro / Perso, dépôt TodoList)
 
 Appli personnelle de Laetitia (ancienne développeuse), pour remplacer Todoist et Google Keep.
 Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
@@ -11,6 +11,8 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Auth : connexion Google (Firebase Auth), session persistante. Un seul compte autorisé via `firestore.rules` (adresse e-mail à renseigner).
 - Le compte qui administre Firebase (adresse secondaire) est distinct du compte de connexion à l'appli (adresse principale).
 - Hors ligne : cache Firestore persistant (IndexedDB) + service worker (`sw.js`, stale-while-revalidate). Penser à incrémenter `CACHE` dans `sw.js` à chaque livraison.
+  GitHub Pages envoie `Cache-Control: max-age=600` : le SW installe avec `cache: 'reload'` et revérifie nos fichiers en `no-cache`.
+  `app.js` recharge la page au `controllerchange` (sauf saisie en cours) et cherche une mise à jour à chaque retour au premier plan.
 - Dépendances CDN : Firebase JS SDK 11.0.2 (gstatic, modules ES), SortableJS 1.15.2 (cdnjs).
 - La config Firebase (`config.js`) est publique par conception ; la sécurité repose sur les règles Firestore.
 
@@ -23,7 +25,8 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 
 ## Spécification fonctionnelle (validée)
 - 2 espaces cloisonnés Pro / Perso (onglets). Une seule liste par espace, filtrable par étiquette (1 étiquette max par tâche, propre à l'espace).
-- Nom de l'appli : « TodoList » (manifest `name` et `short_name`, titre de la page, écran de connexion).
+- Nom de l'appli : « Laeti’s todo » (apostrophe typographique ; manifest `name` et `short_name`, titre de la page, écran de connexion).
+  Écran de démarrage Android : `background_color` et `theme_color` = #FFA9A8 (rose de l'icône).
 - Tâche : case à 3 états (vide → trait → coché, au clic), titre obligatoire, échéance, priorité, étiquette, sous-tâches (même case à 3 états).
 - Priorité : drapeau à droite de la case (tâches et sous-tâches) — rouge haute, orange moyenne, neutre basse ou aucune.
   Un appui sur le drapeau fait neutre → haute → moyenne → neutre (« basse » se règle dans la fiche).
@@ -33,7 +36,7 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Cocher une tâche termine toutes ses sous-tâches. L'inverse n'est pas automatique.
 - Terminées : barrées et en italique, regroupées en bas ; bouton « Supprimer les terminées » (avec confirmation) qui supprime les tâches parentes terminées et leurs sous-tâches.
 - Tris : personnalisé (glisser-déposer, uniquement dans ce mode), par échéance, par priorité ; mémorisé par espace.
-- Saisie rapide au clavier ou à la dictée (Web Speech API, fr-FR) ; reconnaissance des dates en français (`dateparse.js` : « demain », « pour vendredi », « le 25 », « 3 décembre », « dans 3 jours »…). Les nouvelles tâches sont ajoutées en haut.
+- Saisie rapide (validée par la touche Entrée, pas de bouton « + ») au clavier ou à la dictée (Web Speech API, fr-FR) ; reconnaissance des dates en français (`dateparse.js` : « demain », « pour vendredi », « le 25 », « 3 décembre », « dans 3 jours »…). Les nouvelles tâches sont ajoutées en haut.
 - Édition complète d'une tâche au clic (titre, statut, échéance, priorité, étiquette, sous-tâches).
 - Raccourcis d'icône (appui long) : « Nouvelle tâche Pro / Perso » (`?new=pro|perso`).
 - Export CSV (séparateur `;`, BOM UTF-8 pour Excel). Import CSV prévu en V2.

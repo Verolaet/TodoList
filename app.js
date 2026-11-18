@@ -703,5 +703,22 @@ function exportCSV() {
 
 /* ---------- PWA ---------- */
 if ('serviceWorker' in navigator) {
+  // Quand une nouvelle version vient de s'installer, on recharge pour l'afficher tout de suite,
+  // sauf si une saisie est en cours (elle s'affichera alors à la prochaine ouverture).
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    if (document.querySelector('dialog[open]') || $('#quickInput').value.trim() || recognition || dragging) {
+      toast('Nouvelle version prête : elle s’affichera à la prochaine ouverture.', 4000);
+      return;
+    }
+    reloading = true;
+    location.reload();
+  });
+  // L'appli reste souvent ouverte en arrière-plan sur le téléphone : on cherche une mise à jour à chaque retour
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {});
+  });
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }

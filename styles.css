@@ -21,8 +21,8 @@
 }
 :root.dark { color-scheme: dark; }
 /* Drapeaux de priorité (haute = rouge, moyenne = orange ; basse ou aucune = neutre) */
-:root { --prio-high: #D93025; --prio-med: #EF8A00; }
-:root.dark { --prio-high: #FF7A70; --prio-med: #FFB54D; }
+:root { --prio-high: #E0140B; --prio-med: #EF8A00; }
+:root.dark { --prio-high: #FF3B30; --prio-med: #FFB54D; }
 
 /* ---------- Base ---------- */
 * { box-sizing: border-box; }

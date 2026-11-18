@@ -1,4 +1,4 @@
-# TodoList
+# Laeti’s todo
 
 To-do list personnelle Pro / Perso : PWA hébergée sur GitHub Pages, données dans Firebase (Firestore, région Paris).
 
