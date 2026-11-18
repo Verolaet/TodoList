@@ -67,7 +67,8 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 
 ## État au 18/11/2026
 - En ligne sur https://verolaet.github.io/TodoList/ (GitHub Pages, branche main, racine). Connexion et création de tâches validées sur PC.
-- Domaine `verolaet.github.io` autorisé dans Firebase Auth. Règles Firestore publiées pour laetih01@gmail.com (copie dans `firestore.rules`).
+- Domaine `verolaet.github.io` autorisé dans Firebase Auth. Règles Firestore : accès réservé à l'UID du compte Google principal
+  (copie dans `firestore.rules`). Ne jamais écrire d'adresse e-mail réelle dans le dépôt (il est public).
 - Les fichiers ont été déposés via l'upload web de GitHub (pas de `.nojekyll`, non bloquant).
 
 ## Reste à faire
@@ -76,6 +77,18 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 3. Conseillé : ajouter l'adresse principale comme Propriétaire du projet Firebase (pérennité).
 4. Ajuster les couleurs en conditions réelles si besoin (rendu différent téléphone / PC).
 5. V2 : import CSV.
+
+## Sécurité (vérifiée le 18/11/2026)
+- Constaté : HTTPS forcé + HSTS (GitHub) ; Firestore refuse toute lecture sans connexion (403 sur `users` et sur une requête
+  globale `tasks`) ; Storage non activé ; Realtime Database introuvable aux adresses par défaut.
+- En place : `noindex` (meta robots, pas de robots.txt possible pour un site de projet GitHub Pages), refus d'affichage dans un cadre
+  (anti-clickjacking, en JS car GitHub Pages ne permet pas d'en-têtes), SRI sur SortableJS, identifiants Firestore filtrés,
+  textes échappés (`esc`) avant tout `innerHTML`.
+- Non faisable sur GitHub Pages : en-têtes CSP / X-Frame-Options / X-Content-Type-Options. Une CSP en `<meta>` est possible mais
+  doit être validée par une vraie connexion Google (risque de casser la connexion).
+- Le dépôt est public : les adresses e-mail réelles ont été retirées des fichiers le 18/11/2026 (règles basées sur l'UID),
+  mais restent dans l'historique Git (choix de Laetitia : pas de réécriture de l'historique). Commits signés avec l'adresse noreply.
+- Pas de scan OWASP ZAP effectué (un scan actif viserait les serveurs de GitHub ; l'essentiel du risque est côté règles Firebase).
 
 ## Tester sans toucher aux vraies données
 - Une page de test peut remplacer Firebase par une fausse base en mémoire : carte d'import (`importmap`) qui redirige les 3 modules

@@ -161,7 +161,8 @@ onAuthStateChanged(auth, (u) => {
     $('#dbError').hidden = true;
     tasks = new Map();
     // 'estimate' : les dates pas encore confirmées par le serveur (hors ligne) sont estimées au lieu de valoir null
-    snap.forEach((d) => tasks.set(d.id, { id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
+    // Sécurité : on n'accepte que des identifiants « normaux » (ils sont insérés tels quels dans la page)
+    snap.forEach((d) => { if (/^[A-Za-z0-9_-]{1,64}$/.test(d.id)) tasks.set(d.id, { id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }); });
     requestRender();
     if (firstSnapshot) { firstSnapshot = false; handleStartNew(); }
   }, dbError));

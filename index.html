@@ -4,12 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Laeti’s todo</title>
+  <!-- Appli personnelle : ne pas apparaître dans les moteurs de recherche -->
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+  <meta name="googlebot" content="noindex, nofollow">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="theme-color" content="#CECBF6">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <script>
     (function () {
+      // Anti « clickjacking » : l'appli refuse de s'afficher à l'intérieur d'un autre site
+      if (window.top !== window.self) { document.documentElement.style.display = 'none'; return; }
       var h = document.documentElement;
       var t = localStorage.getItem('theme') || 'auto';
       h.dataset.space = localStorage.getItem('space') === 'pro' ? 'pro' : 'perso';
@@ -174,7 +180,10 @@
 
   <div id="toast" class="toast" hidden></div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+  <!-- integrity : le navigateur refuse le fichier s'il a été modifié sur le CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"
+    integrity="sha512-TelkP3PCMJv+viMWynjKcvLsQzx6dJHvIGhfqzFtZKgAjKM1YPqcwzzDEoTc/BHjf43PcPzTQOjuTr4YdE8lNQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

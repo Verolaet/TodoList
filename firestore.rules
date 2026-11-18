@@ -2,11 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Seul ton compte Google peut lire et écrire tes tâches. Tout le reste est refusé.
+    // L'accès est réservé à l'identifiant (UID) de ton compte : Firebase → Authentication → Users → « UID utilisateur ».
+    // (Un UID ne révèle rien sur toi, contrairement à une adresse e-mail : il peut rester dans ce dépôt public.)
     match /users/{uid}/{document=**} {
       allow read, write: if request.auth != null
         && request.auth.uid == uid
-        && request.auth.token.email == "laetih01@gmail.com"
-        && request.auth.token.email_verified == true;
+        && uid == "iHBtl9yY5ie2DetYms5QENOVkGH2";
     }
   }
 }
