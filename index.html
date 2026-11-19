@@ -2,7 +2,8 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- interactive-widget : la page se réduit au-dessus du clavier du téléphone (au lieu d'être recouverte) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Laeti’s todo</title>
   <!-- Appli personnelle : ne pas apparaître dans les moteurs de recherche -->
   <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
@@ -18,7 +19,8 @@
       if (window.top !== window.self) { document.documentElement.style.display = 'none'; return; }
       var h = document.documentElement;
       var t = localStorage.getItem('theme') || 'auto';
-      h.dataset.space = localStorage.getItem('space') === 'pro' ? 'pro' : 'perso';
+      var s = localStorage.getItem('space');
+      h.dataset.space = s === 'pro' || s === 'demo' ? s : 'perso';
       if (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) h.classList.add('dark');
     })();
   </script>
@@ -44,6 +46,10 @@
         <button class="tab" data-space="perso" role="tab">Perso</button>
         <button class="tab" data-space="pro" role="tab">Pro</button>
       </nav>
+      <div id="demoPill" class="demo-pill" hidden>Démo</div>
+      <button id="demoBtn" class="icon-btn" aria-label="Ouvrir la démo" aria-pressed="false" title="Démo">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.2L4.9 18.3A1.8 1.8 0 0 0 6.5 21h11a1.8 1.8 0 0 0 1.6-2.7L14 9.2V3"/><path d="M7.3 15h9.4"/></svg>
+      </button>
       <button id="settingsBtn" class="icon-btn" aria-label="Réglages">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       </button>
@@ -104,48 +110,58 @@
 
   <dialog id="editor">
     <form id="editForm">
-      <label class="field">Titre
-        <textarea name="title" rows="2" required></textarea>
-      </label>
-      <label class="field">Statut
-        <select name="status">
-          <option value="0">Non démarrée</option>
-          <option value="1">En cours</option>
-          <option value="2">Terminée</option>
-          <option value="3">En pause</option>
-        </select>
-      </label>
-      <div class="field-row">
-        <label class="field">Échéance
-          <input type="date" name="due">
+      <!-- Barre fixe en haut : reste visible quand le clavier du téléphone est ouvert -->
+      <div class="sheet-bar">
+        <button type="button" id="cancelEditBtn" class="icon-btn" aria-label="Fermer sans enregistrer" title="Fermer sans enregistrer">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <h2 id="editorTitle" tabindex="-1" autofocus>Tâche</h2>
+        <button type="button" id="deleteTaskBtn" class="icon-btn danger" aria-label="Supprimer la tâche" title="Supprimer">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+        </button>
+        <button type="submit" class="primary save-btn">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          Enregistrer
+        </button>
+      </div>
+      <div class="sheet-body">
+        <label class="field">Titre
+          <textarea name="title" rows="2" required enterkeyhint="done"></textarea>
         </label>
-        <label class="field">Priorité
-          <select name="priority">
-            <option value="">Aucune</option>
-            <option value="1">Haute</option>
-            <option value="2">Moyenne</option>
-            <option value="3">Basse</option>
+        <label class="field">Statut
+          <select name="status">
+            <option value="0">Non démarrée</option>
+            <option value="1">En cours</option>
+            <option value="2">Terminée</option>
+            <option value="3">En pause</option>
           </select>
         </label>
-      </div>
-      <label class="field" id="labelField">Étiquette
-        <input name="label" list="labelsList" autocomplete="off" placeholder="Aucune">
-      </label>
-      <section id="subsEditor" class="subs-editor">
-        <h3>Sous-tâches</h3>
-        <ul id="subsEditList"></ul>
-        <div class="addsub">
-          <input id="newSubInput" type="text" placeholder="Ajouter une sous-tâche" enterkeyhint="done">
-          <button type="button" id="addSubBtn" class="icon-btn" aria-label="Ajouter la sous-tâche">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-          </button>
+        <div class="field-row">
+          <label class="field">Échéance
+            <input type="date" name="due">
+          </label>
+          <label class="field">Priorité
+            <select name="priority">
+              <option value="">Aucune</option>
+              <option value="1">Haute</option>
+              <option value="2">Moyenne</option>
+              <option value="3">Basse</option>
+            </select>
+          </label>
         </div>
-      </section>
-      <div class="actions">
-        <button type="button" id="deleteTaskBtn" class="danger">Supprimer</button>
-        <span class="spacer"></span>
-        <button type="button" id="cancelEditBtn">Annuler</button>
-        <button type="submit" class="primary">Enregistrer</button>
+        <label class="field" id="labelField">Étiquette
+          <input name="label" list="labelsList" autocomplete="off" placeholder="Aucune">
+        </label>
+        <section id="subsEditor" class="subs-editor">
+          <h3>Sous-tâches</h3>
+          <ul id="subsEditList"></ul>
+          <div class="addsub">
+            <input id="newSubInput" type="text" placeholder="Ajouter une sous-tâche" enterkeyhint="done">
+            <button type="button" id="addSubBtn" class="icon-btn" aria-label="Ajouter la sous-tâche">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
+        </section>
       </div>
     </form>
   </dialog>
@@ -160,6 +176,7 @@
       </div>
     </div>
     <button type="button" id="exportBtn" class="wide">Exporter mes tâches (CSV)</button>
+    <button type="button" id="resetDemoBtn" class="wide" hidden>Réinitialiser la démo</button>
     <p class="muted small">Connectée : <span id="userEmail"></span></p>
     <p class="muted small" data-version></p>
     <div class="actions">
@@ -178,7 +195,7 @@
     </div>
   </dialog>
 
-  <div id="toast" class="toast" hidden></div>
+  <div id="toast" class="toast" role="status" hidden></div>
 
   <!-- integrity : le navigateur refuse le fichier s'il a été modifié sur le CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"
