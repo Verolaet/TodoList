@@ -22,12 +22,12 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - La config Firebase (`config.js`) est publique par conception ; la sécurité repose sur les règles Firestore.
 
 ## Modèle de données
-- `users/{uid}/tasks/{id}` : `space` ('pro'|'perso'), `title`, `status` (0 non démarrée, 1 en cours, 2 terminée, 3 en pause),
+- `users/{uid}/tasks/{id}` : `space` ('pro'|'perso'|'demo'), `title`, `status` (0 non démarrée, 1 en cours, 2 terminée, 3 en pause),
   `pausedAt` (date de mise en pause, null sinon), `due` ('YYYY-MM-DD'|null),
   `priority` (1 haute, 2 moyenne, 3 basse | null), `label` (string|null, tâches parentes seulement), `parentId` (null | id de la tâche parente),
   `position` (number, ordre personnalisé), `createdAt`, `updatedAt`, `completedAt`.
-- `users/{uid}/meta/settings` : `sort` { pro, perso } ∈ 'custom'|'due'|'priority'.
-- Thème (auto/clair/sombre), espace courant, sous-tâches repliées, sections « En pause » et « Terminées » repliées : localStorage (par appareil).
+- `users/{uid}/meta/settings` : `sort` { pro, perso, demo } ∈ 'custom'|'due'|'priority'.
+- Thème (auto/clair/sombre), espace courant (`space`, y compris 'demo'), dernier espace réel (`lastSpace`, retrouvé en fermant la démo), sous-tâches repliées, sections « En pause » et « Terminées » repliées : localStorage (par appareil).
 - Les instantanés Firestore sont lus avec `serverTimestamps: 'estimate'` (dates estimées tant que le serveur n'a pas confirmé).
 
 ## Spécification fonctionnelle (validée)
@@ -51,6 +51,20 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Tris : personnalisé (glisser-déposer, uniquement dans ce mode), par échéance, par priorité ; mémorisé par espace.
 - Saisie rapide (validée par la touche Entrée, pas de bouton « + ») au clavier ou à la dictée (Web Speech API, fr-FR) ; reconnaissance des dates en français (`dateparse.js` : « demain », « pour vendredi », « le 25 », « 3 décembre », « dans 3 jours »…). Les nouvelles tâches sont ajoutées en haut.
 - Édition complète d'une tâche au clic (titre, statut, échéance, priorité, étiquette, sous-tâches).
+  Fiche (validée le 19/11/2026) : barre fixe en haut ✕ (fermer sans enregistrer) · titre « Tâche »/« Sous-tâche » · 🗑 · ✓ Enregistrer,
+  pour rester visible quand le clavier du téléphone est ouvert. Plein écran sur téléphone (≤ 640 px), fenêtre centrée sur PC.
+  À l'ouverture sur écran tactile (`pointer: coarse`), le focus va sur le titre de la barre (pas de clavier) ; sur PC, dans le champ Titre.
+  Entrée dans le titre = Enregistrer. Viewport `interactive-widget=resizes-content` : la page se réduit au-dessus du clavier.
+  Les sous-tâches de la fiche restent enregistrées immédiatement (ajout, titre, suppression).
+- Suppression (validée le 19/11/2026) : 🗑 dans la fiche (et pour chaque sous-tâche) = suppression immédiate, sans confirmation,
+  avec « Annuler » dans le message en bas pendant 6 s (les documents sont recréés à l'identique, mêmes id).
+  Le message s'affiche dans la fenêtre ouverte s'il y en a une (le reste de la page est alors inactif).
+  « Supprimer les terminées » garde sa confirmation. Idée gardée pour plus tard : titre modifiable dans la liste avec ✕ (à la Keep).
+- Mode démo (validé le 19/11/2026) : icône fiole dans l'en-tête, à gauche des Réglages ; ouvre/ferme un 3e espace `demo`
+  (mêmes données Firebase, cloisonné comme Pro/Perso). En démo, les onglets Perso/Pro sont remplacés par « Démo » (pour montrer l'appli),
+  l'export CSV est masqué et Réglages propose « Réinitialiser la démo » (avec confirmation). Si la démo est vide à son ouverture,
+  elle est remplie d'exemples (échéances dont une en retard, priorités, étiquettes, sous-tâches, en pause, terminées).
+  La démo n'est jamais exportée. Un appui sur la fiole suffit à sortir de la démo (choix assumé : pas de verrou).
 - Raccourcis d'icône (appui long) : « Nouvelle tâche Pro / Perso » (`?new=pro|perso`).
 - Export CSV (séparateur `;`, BOM UTF-8 pour Excel). Import CSV prévu en V2.
 - Hors périmètre : rappels, notifications, multi-étiquettes.
@@ -58,6 +72,7 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 ## Couleurs (validées, variables en haut de `styles.css`)
 - Pro clair : fond #CECBF6, accent #534AB7. Pro sombre : fond #3B2659, carte #2A1B40, accent #C4A8F0.
 - Perso clair : fond #F5C4B3, accent #993C1D. Perso sombre (corail rosé) : fond #5E2A3A, carte #421D29, accent #FF9E9A.
+- Démo (vert sauge) clair : fond #C8E3D2, accent #2E6B50. Démo sombre : fond #23493B, carte #183429, accent #98D8B6.
 - Le rendu diffère entre téléphone et PC : ajuster en conditions réelles si Laetitia le demande.
 
 ## Icône (validée le 18/11/2026)
@@ -73,6 +88,7 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Les fichiers ont été déposés via l'upload web de GitHub (pas de `.nojekyll`, non bloquant).
 
 ## Reste à faire
+0. Valider sur Android (version du 19/11/2026) : fiche avec le clavier ouvert, poubelle + « Annuler », mode démo.
 1. Valider sur Android : connexion, synchro avec le PC, installation de la PWA, dictée.
 2. Test de sécurité : un autre compte Google doit voir « non autorisé ».
 3. Conseillé : ajouter l'adresse principale comme Propriétaire du projet Firebase (pérennité).

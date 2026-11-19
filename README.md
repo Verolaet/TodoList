@@ -7,6 +7,7 @@ To-do list personnelle Pro / Perso : PWA hébergée sur GitHub Pages, données d
 - Saisie au clavier ou à la dictée, avec reconnaissance des dates (« pour vendredi », « demain », « le 25 »…)
 - Tri personnalisé (glisser-déposer), par échéance ou par priorité
 - Mode clair / sombre, fonctionnement hors ligne, export CSV
+- Mode démo (icône fiole) : un espace d'exemples pour tester et montrer l'appli sans toucher aux vraies tâches
 
 ## Fichiers
 - `index.html`, `styles.css`, `app.js` : l'application (les couleurs sont en haut de `styles.css`)

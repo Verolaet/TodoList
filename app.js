@@ -4,7 +4,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, onSnapshot, setDoc, writeBatch, serverTimestamp,
+  collection, doc, onSnapshot, setDoc, writeBatch, serverTimestamp, Timestamp,
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 import { firebaseConfig } from './config.js';
 import { parseQuickAdd, toISO, addDays } from './dateparse.js';
@@ -24,9 +24,11 @@ const $ = (s) => document.querySelector(s);
 const html = document.documentElement;
 let user = null;
 let tasks = new Map();
-let settings = { sort: { pro: 'custom', perso: 'custom' } };
-let space = localStorage.getItem('space') === 'pro' ? 'pro' : 'perso'; // Perso par défaut (premier onglet)
-let labelFilter = { pro: null, perso: null };
+let settings = { sort: { pro: 'custom', perso: 'custom', demo: 'custom' } };
+// Espace courant : 'perso' (par défaut, premier onglet), 'pro' ou 'demo' (mode démo, ouvert par l'icône fiole)
+let space = ['pro', 'demo'].includes(localStorage.getItem('space')) ? localStorage.getItem('space') : 'perso';
+let labelFilter = { pro: null, perso: null, demo: null };
+let demoSeedPending = space === 'demo'; // remettre les exemples si la démo est vide à son ouverture
 let collapsed = new Set(JSON.parse(localStorage.getItem('collapsed') || '[]'));
 let pausedCollapsed = localStorage.getItem('pausedCollapsed') === '1';
 let doneCollapsed = localStorage.getItem('doneCollapsed') === '1';
@@ -65,9 +67,21 @@ const taskRef = (id) => doc(db, 'users', user.uid, 'tasks', id);
 const settingsRef = () => doc(db, 'users', user.uid, 'meta', 'settings');
 const childrenOf = (id) => [...tasks.values()].filter((t) => t.parentId === id).sort(byPos);
 
-function toast(msg, ms = 2600) {
+// Message en bas de l'écran, avec un bouton facultatif (ex. « Annuler » après une suppression)
+function toast(msg, ms = 2600, action = null) {
   const el = $('#toast');
-  el.textContent = msg;
+  // Une fenêtre ouverte (fiche…) rend le reste de la page inactif : le message s'affiche alors dans la fenêtre
+  const host = document.querySelector('dialog[open]') || document.body;
+  if (el.parentElement !== host) host.appendChild(el);
+  el.replaceChildren(document.createTextNode(msg));
+  if (action) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'toast-action';
+    b.textContent = action.label;
+    b.onclick = () => { clearTimeout(toast.t); el.hidden = true; action.fn(); };
+    el.append(b);
+  }
   el.hidden = false;
   clearTimeout(toast.t);
   toast.t = setTimeout(() => { el.hidden = true; }, ms);
@@ -165,7 +179,7 @@ onAuthStateChanged(auth, (u) => {
     // Sécurité : on n'accepte que des identifiants « normaux » (ils sont insérés tels quels dans la page)
     snap.forEach((d) => { if (/^[A-Za-z0-9_-]{1,64}$/.test(d.id)) tasks.set(d.id, { id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }); });
     requestRender();
-    if (firstSnapshot) { firstSnapshot = false; handleStartNew(); }
+    if (firstSnapshot) { firstSnapshot = false; handleStartNew(); maybeSeedDemo(); }
   }, dbError));
   unsubs.push(onSnapshot(settingsRef(), (d) => {
     if (d.exists()) {
@@ -260,6 +274,12 @@ function render() {
     b.classList.toggle('active', b.dataset.space === space);
     b.setAttribute('aria-selected', b.dataset.space === space);
   });
+  const demo = space === 'demo';
+  $('.tabs').hidden = demo; // en démo, Perso et Pro ne sont pas affichés
+  $('#demoPill').hidden = !demo;
+  $('#demoBtn').classList.toggle('active', demo);
+  $('#demoBtn').setAttribute('aria-pressed', String(demo));
+  $('#demoBtn').setAttribute('aria-label', demo ? 'Fermer la démo' : 'Ouvrir la démo');
   const mode = settings.sort?.[space] || 'custom';
   $('#sortSelect').value = mode;
 
@@ -456,6 +476,7 @@ function makeTopLevel(id) {
 function setSpace(s) {
   space = s;
   localStorage.setItem('space', s);
+  if (s !== 'demo') localStorage.setItem('lastSpace', s); // espace retrouvé en fermant la démo
   render();
   window.scrollTo({ top: 0 });
 }
@@ -524,6 +545,21 @@ function deleteTasks(ids) {
   save(batch.commit());
 }
 
+// Suppression immédiate, avec « Annuler » pendant quelques secondes (les tâches sont recréées à l'identique)
+function deleteWithUndo(ids, msg) {
+  const copies = ids.map((id) => tasks.get(id)).filter(Boolean).map((t) => ({ ...t }));
+  if (!copies.length) return;
+  deleteTasks(copies.map((t) => t.id));
+  toast(msg, 6000, {
+    label: 'Annuler',
+    fn: () => {
+      const batch = writeBatch(db);
+      copies.forEach(({ id, ...data }) => batch.set(taskRef(id), data));
+      save(batch.commit());
+    },
+  });
+}
+
 function askConfirm(msg, yesLabel = 'Supprimer') {
   return new Promise((resolve) => {
     const dlg = $('#confirmDlg');
@@ -550,14 +586,21 @@ function openEditor(id) {
   f.label.value = t.label || '';
   $('#labelField').hidden = !!t.parentId;
   $('#subsEditor').hidden = !!t.parentId;
+  $('#editorTitle').textContent = t.parentId ? 'Sous-tâche' : 'Tâche';
+  $('#deleteTaskBtn').setAttribute('aria-label', t.parentId ? 'Supprimer la sous-tâche' : 'Supprimer la tâche');
   $('#newSubInput').value = '';
   renderSubsEditor();
   $('#editor').showModal();
+  // Sur téléphone, pas de curseur dans un champ à l'ouverture : le clavier ne s'ouvre que si on touche un champ.
+  // Sur PC (souris), le curseur va dans le titre, prêt à être modifié.
+  if (matchMedia('(pointer: coarse)').matches) $('#editorTitle').focus({ preventScroll: true });
+  else { f.title.focus(); f.title.setSelectionRange(f.title.value.length, f.title.value.length); }
 }
 
 function renderSubsEditor() {
   const list = $('#subsEditList');
-  if (!editingId || list.contains(document.activeElement)) return;
+  // On ne redessine pas pendant la modification d'un titre de sous-tâche (le texte en cours serait perdu)
+  if (!editingId || (list.contains(document.activeElement) && document.activeElement.matches('input'))) return;
   const kids = childrenOf(editingId);
   list.innerHTML = kids.map((k) => `<li class="${k.status === 2 ? 'is-done' : k.status === 3 ? 'is-paused' : ''}" data-id="${k.id}">
       ${checkHTML(k)}
@@ -587,15 +630,28 @@ $('#editForm').addEventListener('submit', (e) => {
   $('#editor').close();
 });
 $('#cancelEditBtn').addEventListener('click', () => $('#editor').close());
-$('#editor').addEventListener('close', () => { editingId = null; });
+$('#editor').addEventListener('close', () => {
+  editingId = null;
+  const t = $('#toast'); // un message affiché dans la fiche (ex. « Annuler ») reste visible après sa fermeture
+  if (t.parentElement === $('#editor')) document.body.appendChild(t);
+});
+// Entrée dans le titre = Enregistrer (le titre tient sur une ligne : les retours à la ligne sont de toute façon retirés)
+const editTitle = $('#editForm').elements.namedItem('title');
+editTitle.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('#editForm').requestSubmit(); }
+});
+editTitle.addEventListener('beforeinput', (e) => { // claviers de téléphone qui n'envoient pas la touche Entrée
+  if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') { e.preventDefault(); $('#editForm').requestSubmit(); }
+});
 
-$('#deleteTaskBtn').addEventListener('click', async () => {
+$('#deleteTaskBtn').addEventListener('click', () => {
   const t = tasks.get(editingId);
   if (!t) return;
   const kids = childrenOf(t.id);
-  const msg = kids.length ? `Supprimer « ${t.title} » et ses ${kids.length} sous-tâche(s) ?` : `Supprimer « ${t.title} » ?`;
   $('#editor').close();
-  if (await askConfirm(msg)) deleteTasks([t.id, ...kids.map((k) => k.id)]);
+  const msg = kids.length ? `Tâche et ${kids.length} sous-tâche${kids.length > 1 ? 's' : ''} supprimées`
+    : t.parentId ? 'Sous-tâche supprimée' : 'Tâche supprimée';
+  deleteWithUndo([t.id, ...kids.map((k) => k.id)], msg);
 });
 
 const subsList = $('#subsEditList');
@@ -603,7 +659,7 @@ subsList.addEventListener('click', async (e) => {
   const chk = e.target.closest('[data-check]');
   if (chk) { cycleStatus(chk.dataset.check); return; }
   const del = e.target.closest('[data-subdel]');
-  if (del) deleteTasks([del.dataset.subdel]);
+  if (del) deleteWithUndo([del.dataset.subdel], 'Sous-tâche supprimée');
 });
 subsList.addEventListener('change', (e) => {
   const id = e.target.dataset.subtitle;
@@ -686,6 +742,71 @@ document.addEventListener('contextmenu', (e) => {
 });
 
 document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => setSpace(b.dataset.space)));
+
+/* ---------- Mode démo (icône fiole) : un espace à part, pour tester et montrer sans toucher aux vraies tâches ---------- */
+$('#demoBtn').addEventListener('click', () => {
+  if (space === 'demo') { setSpace(localStorage.getItem('lastSpace') === 'pro' ? 'pro' : 'perso'); return; }
+  setSpace('demo');
+  demoSeedPending = true;
+  maybeSeedDemo();
+});
+
+// Si la démo est vide à son ouverture, on la remplit d'exemples (une fois les tâches chargées)
+function maybeSeedDemo() {
+  if (!demoSeedPending || space !== 'demo' || firstSnapshot || !user) return;
+  demoSeedPending = false;
+  if (![...tasks.values()].some((t) => t.space === 'demo')) writeDemoExamples(writeBatch(db));
+}
+
+// Exemples qui montrent toutes les fonctions : échéances (dont une en retard), priorités, étiquettes,
+// sous-tâches, tâche en pause, tâches terminées
+function writeDemoExamples(batch) {
+  const day = (n) => toISO(addDays(new Date(), n));
+  const ago = (days, hours = 0) => Timestamp.fromDate(new Date(Date.now() - (days * 24 + hours) * 3600e3));
+  const examples = [
+    { title: 'Préparer la réunion d’équipe', status: 1, due: day(0), priority: 1, label: 'Travail', subs: [
+      { title: 'Rassembler les chiffres', status: 2 },
+      { title: 'Faire le support', status: 1, priority: 1 },
+      { title: 'Envoyer l’ordre du jour' },
+    ] },
+    { title: 'Appeler le plombier', due: day(1), priority: 2, label: 'Maison' },
+    { title: 'Renvoyer le colis', due: day(-2), label: 'Maison' },
+    { title: 'Réserver les billets de train', due: day(6), label: 'Vacances', subs: [
+      { title: 'Comparer les horaires', status: 2 },
+      { title: 'Choisir les places', status: 3 },
+      { title: 'Payer' },
+    ] },
+    { title: 'Lire le roman du club de lecture', priority: 3, label: 'Loisirs' },
+    { title: 'Ranger le garage', status: 3, label: 'Maison' },
+    { title: 'Acheter du pain', status: 2 },
+    { title: 'Envoyer le compte rendu', status: 2, label: 'Travail' },
+  ];
+  const write = (ex, parentId, position, label) => {
+    const ref = doc(tasksCol());
+    const status = ex.status || 0;
+    batch.set(ref, {
+      space: 'demo', title: ex.title, status, due: ex.due || null, priority: ex.priority || null, label,
+      parentId, position, createdAt: ago(7), updatedAt: ago(0, 1),
+      completedAt: status === 2 ? ago(position % 3, 2) : null, pausedAt: status === 3 ? ago(4) : null,
+    });
+    return ref.id;
+  };
+  examples.forEach((ex, i) => {
+    const id = write(ex, null, (i + 1) * 1000, ex.label || null);
+    (ex.subs || []).forEach((k, j) => write(k, id, (j + 1) * 1000, null));
+  });
+  save(batch.commit());
+}
+
+$('#resetDemoBtn').addEventListener('click', async () => {
+  $('#settings').close();
+  if (!await askConfirm('Réinitialiser la démo ? Ses tâches seront remplacées par les exemples de départ. Tes tâches Perso et Pro ne sont pas touchées.', 'Réinitialiser')) return;
+  const batch = writeBatch(db);
+  [...tasks.values()].filter((t) => t.space === 'demo').forEach((t) => batch.delete(taskRef(t.id)));
+  writeDemoExamples(batch);
+  labelFilter.demo = null;
+  toast('Démo réinitialisée');
+});
 $('#labelChips').addEventListener('click', (e) => {
   const b = e.target.closest('[data-label]');
   if (!b) return;
@@ -756,7 +877,13 @@ $('#micBtn').addEventListener('click', () => {
 });
 
 /* ---------- Réglages ---------- */
-$('#settingsBtn').addEventListener('click', () => { applyTheme(); $('#settings').showModal(); });
+$('#settingsBtn').addEventListener('click', () => {
+  applyTheme();
+  // En démo : pas d'export des vraies tâches (on peut montrer l'appli), mais la remise à zéro de la démo
+  $('#exportBtn').hidden = space === 'demo';
+  $('#resetDemoBtn').hidden = space !== 'demo';
+  $('#settings').showModal();
+});
 $('#closeSettingsBtn').addEventListener('click', () => $('#settings').close());
 $('#themeSeg').addEventListener('click', (e) => {
   const b = e.target.closest('[data-theme]');
@@ -784,8 +911,8 @@ function exportCSV() {
       childrenOf(p.id).forEach((k) => rows.push(line(k)));
     }
   }
-  // Sous-tâches orphelines éventuelles
-  [...tasks.values()].filter((t) => t.parentId && !tasks.has(t.parentId)).forEach((t) => rows.push(line(t)));
+  // Sous-tâches orphelines éventuelles (la démo n'est pas exportée)
+  [...tasks.values()].filter((t) => t.space !== 'demo' && t.parentId && !tasks.has(t.parentId)).forEach((t) => rows.push(line(t)));
   const csv = rows.map((r) => r.map((v) => {
     const s = v == null ? '' : String(v);
     return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
