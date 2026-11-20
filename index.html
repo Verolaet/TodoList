@@ -175,7 +175,11 @@
         <button type="button" data-theme="dark">Sombre</button>
       </div>
     </div>
-    <button type="button" id="exportBtn" class="wide">Exporter mes tâches (CSV)</button>
+    <div class="field" id="exportBox">Export (CSV pour Excel)
+      <label class="opt-check"><input type="checkbox" id="exportSubs"> Inclure les sous-tâches</label>
+      <button type="button" id="exportBtn" class="wide">Exporter l’espace</button>
+      <button type="button" id="backupBtn" class="wide">Sauvegarde complète Pro + Perso</button>
+    </div>
     <button type="button" id="resetDemoBtn" class="wide" hidden>Réinitialiser la démo</button>
     <p class="muted small">Connectée : <span id="userEmail"></span></p>
     <p class="muted small" data-version></p>

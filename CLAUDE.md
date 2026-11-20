@@ -66,7 +66,14 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
   elle est remplie d'exemples (échéances dont une en retard, priorités, étiquettes, sous-tâches, en pause, terminées).
   La démo n'est jamais exportée. Un appui sur la fiole suffit à sortir de la démo (choix assumé : pas de verrou).
 - Raccourcis d'icône (appui long) : « Nouvelle tâche Pro / Perso » (`?new=pro|perso`).
-- Export CSV (séparateur `;`, BOM UTF-8 pour Excel). Import CSV prévu en V2.
+- Export CSV (séparateur `;`, BOM UTF-8 pour Excel), dans Réglages (validé le 20/11/2026) :
+  - « Exporter l’espace Pro/Perso » (lisible, ex. pour un point avec sa cheffe) : l'espace affiché, toutes étiquettes (le filtre
+    à l'écran est ignoré), dans l'ordre de l'écran (liste selon le tri, puis en pause, puis terminées). Colonnes : N°, Titre, Priorité,
+    État, Échéance, Étiquette, Créée le, En pause depuis, Terminée le ; dates jj/mm/aaaa. Case « Inclure les sous-tâches »
+    décochée à chaque ouverture des Réglages ; les sous-tâches suivent leur parente (« ↳ titre ») et reprennent son étiquette.
+    N° = numéro de ligne, pour retrouver l'ordre après un tri dans Excel. Un texte commençant par = + - @ est préfixé d'une apostrophe
+    (sinon Excel le prend pour une formule).
+  - « Sauvegarde complète Pro + Perso » : toutes les données techniques (id, parente, position, dates ISO). Base de l'import CSV prévu en V2.
 - Hors périmètre : rappels, notifications, multi-étiquettes.
 
 ## Couleurs (validées, variables en haut de `styles.css`)
@@ -88,6 +95,7 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Les fichiers ont été déposés via l'upload web de GitHub (pas de `.nojekyll`, non bloquant).
 
 ## Reste à faire
+0. Valider l'export lisible dans Excel (dates reconnues, tri, retour à l'ordre par N°).
 0. Valider sur Android (version du 19/11/2026) : fiche avec le clavier ouvert, poubelle + « Annuler », mode démo.
 1. Valider sur Android : connexion, synchro avec le PC, installation de la PWA, dictée.
 2. Test de sécurité : un autre compte Google doit voir « non autorisé ».

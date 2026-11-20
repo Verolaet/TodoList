@@ -55,6 +55,7 @@ const ICON = {
 };
 const PRIO = { 1: 'Haute', 2: 'Moyenne', 3: 'Basse' };
 const STATUS = ['Non démarrée', 'En cours', 'Terminée', 'En pause'];
+const SPACE_NAME = { pro: 'Pro', perso: 'Perso', demo: 'Démo' };
 
 /* ---------- Outils ---------- */
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -267,6 +268,18 @@ function taskHTML(t, mode) {
   </li>`;
 }
 
+// Ordre d'affichage des tâches parentes : la liste (selon le tri choisi), « En pause », puis « Terminées » (les plus récentes d'abord)
+function groupParents(parents, mode) {
+  const sortFn = mode === 'due' ? (a, b) => cmpDue(a, b) || byPos(a, b)
+    : mode === 'priority' ? (a, b) => cmpPrio(a, b) || cmpDue(a, b) || byPos(a, b)
+      : byPos;
+  return {
+    active: parents.filter((t) => t.status !== 2 && t.status !== 3).sort(sortFn),
+    paused: parents.filter((t) => t.status === 3).sort(sortFn),
+    done: parents.filter((t) => t.status === 2).sort((a, b) => tsOf(b.completedAt) - tsOf(a.completedAt)),
+  };
+}
+
 function render() {
   if (!user) return;
   applyTheme();
@@ -296,15 +309,7 @@ function render() {
 
   let parents = inSpace.filter((t) => !t.parentId);
   if (filter) parents = parents.filter((t) => t.label === filter);
-  const active = parents.filter((t) => t.status !== 2 && t.status !== 3);
-  const paused = parents.filter((t) => t.status === 3);
-  const done = parents.filter((t) => t.status === 2);
-  const sortFn = mode === 'due' ? (a, b) => cmpDue(a, b) || byPos(a, b)
-    : mode === 'priority' ? (a, b) => cmpPrio(a, b) || cmpDue(a, b) || byPos(a, b)
-      : byPos;
-  active.sort(sortFn);
-  paused.sort(sortFn);
-  done.sort((a, b) => tsOf(b.completedAt) - tsOf(a.completedAt));
+  const { active, paused, done } = groupParents(parents, mode);
 
   $('#activeList').innerHTML = active.map((t) => taskHTML(t, mode)).join('');
   $('#emptyState').hidden = active.length > 0;
@@ -880,7 +885,9 @@ $('#micBtn').addEventListener('click', () => {
 $('#settingsBtn').addEventListener('click', () => {
   applyTheme();
   // En démo : pas d'export des vraies tâches (on peut montrer l'appli), mais la remise à zéro de la démo
-  $('#exportBtn').hidden = space === 'demo';
+  $('#exportBox').hidden = space === 'demo';
+  $('#exportBtn').textContent = `Exporter l’espace ${SPACE_NAME[space]}`;
+  $('#exportSubs').checked = false; // sous-tâches non incluses par défaut, à chaque ouverture
   $('#resetDemoBtn').hidden = space !== 'demo';
   $('#settings').showModal();
 });
@@ -895,9 +902,36 @@ $('#logoutBtn').addEventListener('click', async () => {
   $('#settings').close();
   if (await askConfirm('Se déconnecter de cet appareil ?', 'Se déconnecter')) signOut(auth);
 });
-$('#exportBtn').addEventListener('click', exportCSV);
+$('#exportBtn').addEventListener('click', exportReadable);
+$('#backupBtn').addEventListener('click', exportBackup);
 
-function exportCSV() {
+// 'AAAA-MM-JJ' → 'jj/mm/aaaa' (reconnu comme une date par Excel en français)
+const frDay = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
+const frTs = (t) => (t && typeof t.toDate === 'function' ? frDay(toISO(t.toDate())) : '');
+
+// Export lisible (ex. pour un point avec sa cheffe) : l'espace affiché, toutes étiquettes, dans l'ordre de l'écran.
+// La colonne N° permet de retrouver cet ordre après un tri dans Excel.
+function exportReadable() {
+  const withSubs = $('#exportSubs').checked;
+  const parents = [...tasks.values()].filter((t) => t.space === space && !t.parentId);
+  const { active, paused, done } = groupParents(parents, settings.sort?.[space] || 'custom');
+  const rows = [['N°', 'Titre', 'Priorité', 'État', 'Échéance', 'Étiquette', 'Créée le', 'En pause depuis', 'Terminée le']];
+  // Une sous-tâche reprend l'étiquette de sa parente : un filtre par étiquette dans Excel la garde avec elle
+  const line = (t, parent) => [rows.length, (parent ? '↳ ' : '') + t.title, PRIO[t.priority] || '', STATUS[t.status || 0],
+    frDay(t.due), (parent || t).label || '', frTs(t.createdAt), t.status === 3 ? frTs(t.pausedAt) : '', t.status === 2 ? frTs(t.completedAt) : ''];
+  let count = 0;
+  for (const p of [...active, ...paused, ...done]) {
+    rows.push(line(p, null));
+    count++;
+    if (withSubs) childrenOf(p.id).forEach((k) => rows.push(line(k, p)));
+  }
+  downloadCSV(rows, `taches-${space}-${toISO(new Date())}.csv`, true);
+  const subs = rows.length - 1 - count;
+  toast(`${count} tâche(s) ${SPACE_NAME[space]} exportée(s)` + (subs ? ` + ${subs} sous-tâche(s)` : ''));
+}
+
+// Sauvegarde complète (Pro + Perso, avec les champs techniques) : copie de secours, base de l'import prévu en V2
+function exportBackup() {
   const fmtTs = (t) => (t && typeof t.toDate === 'function' ? t.toDate().toISOString() : '');
   const header = ['espace', 'id', 'tache_parente', 'titre', 'statut', 'echeance', 'priorite', 'etiquette', 'position', 'creee_le', 'terminee_le', 'en_pause_le'];
   const rows = [header];
@@ -913,18 +947,25 @@ function exportCSV() {
   }
   // Sous-tâches orphelines éventuelles (la démo n'est pas exportée)
   [...tasks.values()].filter((t) => t.space !== 'demo' && t.parentId && !tasks.has(t.parentId)).forEach((t) => rows.push(line(t)));
+  downloadCSV(rows, `sauvegarde-taches-${toISO(new Date())}.csv`, false);
+  toast(`${rows.length - 1} ligne(s) exportée(s)`);
+}
+
+// CSV pour Excel : séparateur « ; », BOM UTF-8. forExcel : un texte commençant par = + - @ serait pris
+// pour une formule par Excel (ex. « -relancer » → #NOM?) ; on le préfixe alors d'une apostrophe.
+function downloadCSV(rows, filename, forExcel) {
   const csv = rows.map((r) => r.map((v) => {
-    const s = v == null ? '' : String(v);
+    let s = v == null ? '' : String(v);
+    if (forExcel && typeof v === 'string' && /^[=+\-@]/.test(s)) s = "'" + s;
     return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }).join(';')).join('\r\n');
-  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `taches-${toISO(new Date())}.csv`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-  toast(`${rows.length - 1} ligne(s) exportée(s)`);
 }
 
 /* ---------- PWA ---------- */
