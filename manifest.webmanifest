@@ -14,7 +14,6 @@
     { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "Nouvelle tâche Perso", "short_name": "Tâche Perso", "url": "./?new=perso", "icons": [{ "src": "icons/sc-perso.png", "sizes": "96x96" }] },
-    { "name": "Nouvelle tâche Pro", "short_name": "Tâche Pro", "url": "./?new=pro", "icons": [{ "src": "icons/sc-pro.png", "sizes": "96x96" }] }
+    { "name": "Nouvelle tâche", "short_name": "Nouvelle tâche", "url": "./?new=1", "icons": [{ "src": "icons/sc-perso.png", "sizes": "96x96" }] }
   ]
 }

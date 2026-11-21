@@ -19,8 +19,9 @@
       if (window.top !== window.self) { document.documentElement.style.display = 'none'; return; }
       var h = document.documentElement;
       var t = localStorage.getItem('theme') || 'auto';
-      var s = localStorage.getItem('space');
-      h.dataset.space = s === 'pro' || s === 'demo' ? s : 'perso';
+      // Couleur de l'onglet ouvert la dernière fois (évite un éclair d'une autre couleur au démarrage)
+      var c = localStorage.getItem('color'), s = localStorage.getItem('space');
+      h.dataset.color = /^[a-z]{1,16}$/.test(c || '') ? c : s === 'pro' ? 'violet' : s === 'demo' ? 'sauge' : 'corail';
       if (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) h.classList.add('dark');
     })();
   </script>
@@ -42,10 +43,9 @@
 
   <div id="app" class="wrap" hidden>
     <header class="top">
-      <nav class="tabs" role="tablist">
-        <button class="tab" data-space="perso" role="tab">Perso</button>
-        <button class="tab" data-space="pro" role="tab">Pro</button>
-      </nav>
+      <!-- Nom de l'appli : affiché seulement quand les onglets passent sur leur propre ligne (trop nombreux pour la largeur) -->
+      <div class="brand">Laeti’s todo</div>
+      <nav class="tabs" role="tablist"></nav>
       <div id="demoPill" class="demo-pill" hidden>Démo</div>
       <button id="demoBtn" class="icon-btn" aria-label="Ouvrir la démo" aria-pressed="false" title="Démo">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.2L4.9 18.3A1.8 1.8 0 0 0 6.5 21h11a1.8 1.8 0 0 0 1.6-2.7L14 9.2V3"/><path d="M7.3 15h9.4"/></svg>
@@ -108,7 +108,7 @@
 
   <datalist id="labelsList"></datalist>
 
-  <dialog id="editor">
+  <dialog id="editor" class="sheet">
     <form id="editForm">
       <!-- Barre fixe en haut : reste visible quand le clavier du téléphone est ouvert -->
       <div class="sheet-bar">
@@ -152,6 +152,9 @@
         <label class="field" id="labelField">Étiquette
           <input name="label" list="labelsList" autocomplete="off" placeholder="Aucune">
         </label>
+        <label class="field" id="spaceField">Onglet
+          <select name="space"></select>
+        </label>
         <section id="subsEditor" class="subs-editor">
           <h3>Sous-tâches</h3>
           <ul id="subsEditList"></ul>
@@ -166,28 +169,115 @@
     </form>
   </dialog>
 
-  <dialog id="settings">
-    <h2>Réglages</h2>
-    <div class="field">Thème
-      <div class="segmented" id="themeSeg">
-        <button type="button" data-theme="auto">Auto</button>
-        <button type="button" data-theme="light">Clair</button>
-        <button type="button" data-theme="dark">Sombre</button>
+  <!-- Réglages : barre fixe en haut et plein écran sur téléphone, comme la fiche d'une tâche -->
+  <dialog id="settings" class="sheet">
+    <div class="sheet-bar">
+      <button type="button" id="closeSettingsBtn" class="icon-btn" aria-label="Fermer" title="Fermer">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <h2 tabindex="-1" autofocus>Réglages</h2>
+    </div>
+    <!-- Sections pliables : toutes pliées à l'ouverture, une seule dépliée à la fois ; résumé à droite du titre -->
+    <div class="sheet-body" id="settingsBody">
+      <section class="set-section" id="tabsSection">
+        <button type="button" class="set-head" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19V7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span class="set-title">Onglets</span><span class="set-sum" id="sumTabs"></span>
+          <svg class="set-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="set-body" hidden>
+          <ul id="tabsAdmin" class="tabs-admin"></ul>
+          <button type="button" id="addTabBtn" class="wide">+ Ajouter un onglet</button>
+          <p id="tabsFull" class="muted small" hidden>5 onglets au maximum (plus la démo).</p>
+        </div>
+      </section>
+      <section class="set-section">
+        <button type="button" class="set-head" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg>
+          <span class="set-title">Affichage</span><span class="set-sum" id="sumTheme"></span>
+          <svg class="set-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="set-body" hidden>
+          <div class="segmented" id="themeSeg">
+            <button type="button" data-theme="auto">Auto</button>
+            <button type="button" data-theme="light">Clair</button>
+            <button type="button" data-theme="dark">Sombre</button>
+          </div>
+        </div>
+      </section>
+      <section class="set-section" id="exportBox">
+        <button type="button" class="set-head" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16"/></svg>
+          <span class="set-title">Export Excel</span><span class="set-sum"></span>
+          <svg class="set-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="set-body" hidden>
+          <label class="field">Onglet à exporter
+            <select id="exportSpace"></select>
+          </label>
+          <div class="export-row">
+            <label class="opt-check"><input type="checkbox" id="exportSubs"> Avec sous-tâches</label>
+            <button type="button" id="exportBtn" class="primary">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+              Exporter
+            </button>
+          </div>
+          <p class="muted small">Fichier CSV pour Excel : toutes les étiquettes, dans l’ordre de l’écran.</p>
+        </div>
+      </section>
+      <section class="set-section" id="backupSection">
+        <button type="button" class="set-head" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg>
+          <span class="set-title">Sauvegarde</span><span class="set-sum"></span>
+          <svg class="set-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="set-body" hidden>
+          <p class="small set-text">Copie de secours de tous les onglets (sauf la démo), avec toutes les données techniques.
+            Elle servira à l’import prévu plus tard ; ce n’est pas un tableau à lire.</p>
+          <button type="button" id="backupBtn" class="wide">Télécharger la sauvegarde</button>
+        </div>
+      </section>
+      <section class="set-section" id="demoSection" hidden>
+        <button type="button" class="set-head" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.2L4.9 18.3A1.8 1.8 0 0 0 6.5 21h11a1.8 1.8 0 0 0 1.6-2.7L14 9.2V3"/><path d="M7.3 15h9.4"/></svg>
+          <span class="set-title">Démo</span><span class="set-sum"></span>
+          <svg class="set-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="set-body" hidden>
+          <button type="button" id="resetDemoBtn" class="wide">Réinitialiser la démo</button>
+        </div>
+      </section>
+      <section class="set-section">
+        <button type="button" class="set-head" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+          <span class="set-title">Compte</span><span class="set-sum" id="sumAccount"></span>
+          <svg class="set-chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="set-body" hidden>
+          <button type="button" id="logoutBtn" class="wide danger-outline">Se déconnecter</button>
+          <p class="muted small" data-version></p>
+        </div>
+      </section>
+    </div>
+  </dialog>
+
+  <dialog id="tabDlg">
+    <form id="tabForm" autocomplete="off">
+      <h2 id="tabDlgTitle">Nouvel onglet</h2>
+      <label class="field">Nom
+        <input name="tabname" maxlength="12" enterkeyhint="done">
+      </label>
+      <p class="muted small tab-hint">12 caractères au plus. Noms courts conseillés : sur téléphone, environ 30 lettres en tout tiennent sans être coupées.</p>
+      <div class="field">Couleur
+        <div id="colorGrid" class="color-grid"></div>
       </div>
-    </div>
-    <div class="field" id="exportBox">Export (CSV pour Excel)
-      <label class="opt-check"><input type="checkbox" id="exportSubs"> Inclure les sous-tâches</label>
-      <button type="button" id="exportBtn" class="wide">Exporter l’espace</button>
-      <button type="button" id="backupBtn" class="wide">Sauvegarde complète Pro + Perso</button>
-    </div>
-    <button type="button" id="resetDemoBtn" class="wide" hidden>Réinitialiser la démo</button>
-    <p class="muted small">Connectée : <span id="userEmail"></span></p>
-    <p class="muted small" data-version></p>
-    <div class="actions">
-      <button type="button" id="logoutBtn" class="danger">Se déconnecter</button>
-      <span class="spacer"></span>
-      <button type="button" id="closeSettingsBtn" class="primary">Fermer</button>
-    </div>
+      <p id="tabError" class="error small" hidden></p>
+      <div class="actions">
+        <span class="spacer"></span>
+        <button type="button" id="tabCancel">Annuler</button>
+        <button type="submit" class="primary">Enregistrer</button>
+      </div>
+    </form>
   </dialog>
 
   <dialog id="confirmDlg">

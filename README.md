@@ -2,7 +2,7 @@
 
 To-do list personnelle Pro / Perso : PWA hébergée sur GitHub Pages, données dans Firebase (Firestore, région Paris).
 
-- Deux espaces cloisonnés, une étiquette par tâche, sous-tâches
+- Jusqu'à 5 onglets cloisonnés (au départ Perso et Pro), à renommer, colorer et réordonner ; une étiquette par tâche, sous-tâches
 - Case à 3 états : non démarrée → en cours → terminée
 - Saisie au clavier ou à la dictée, avec reconnaissance des dates (« pour vendredi », « demain », « le 25 »…)
 - Tri personnalisé (glisser-déposer), par échéance ou par priorité

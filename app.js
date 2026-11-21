@@ -24,10 +24,43 @@ const $ = (s) => document.querySelector(s);
 const html = document.documentElement;
 let user = null;
 let tasks = new Map();
-let settings = { sort: { pro: 'custom', perso: 'custom', demo: 'custom' } };
-// Espace courant : 'perso' (par défaut, premier onglet), 'pro' ou 'demo' (mode démo, ouvert par l'icône fiole)
-let space = ['pro', 'demo'].includes(localStorage.getItem('space')) ? localStorage.getItem('space') : 'perso';
-let labelFilter = { pro: null, perso: null, demo: null };
+let settings = { sort: {} };
+
+/* ---------- Onglets (configurables : 1 à 5, plus la démo à part) ---------- */
+// Chaque tâche porte l'identifiant de son onglet (`space`). Perso et Pro gardent leurs identifiants d'origine ('perso', 'pro') ;
+// un nouvel onglet reçoit un identifiant aléatoire. La liste (ordre, nom, couleur) est dans meta/settings.spaces (synchronisée).
+const MAX_TABS = 5;
+const NAME_MAX = 12;
+// Thèmes proposés pour les onglets (palettes clair + sombre en haut de styles.css). Le vert sauge est réservé à la démo.
+const THEMES = ['violet', 'corail', 'bleu', 'turquoise', 'ambre', 'framboise', 'ardoise', 'olive'];
+const THEME_NAME = { violet: 'Violet', corail: 'Corail', bleu: 'Bleu', turquoise: 'Turquoise', ambre: 'Ambre', framboise: 'Framboise', ardoise: 'Ardoise', olive: 'Olive' };
+const DEFAULT_SPACES = [{ id: 'perso', name: 'Perso', theme: 'corail' }, { id: 'pro', name: 'Pro', theme: 'violet' }];
+const SPACE_ID = /^[A-Za-z0-9_-]{1,32}$/;
+let spaces = DEFAULT_SPACES;
+let settingsLoaded = false; // tant que la liste des onglets n'est pas chargée, on ne corrige pas l'onglet courant
+
+// Liste des onglets lue dans la base, vérifiée (elle est insérée dans la page) : au plus 5, identifiants sûrs, noms courts
+function cleanSpaces(list) {
+  if (!Array.isArray(list)) return DEFAULT_SPACES;
+  const out = [];
+  const seen = new Set();
+  for (const s of list) {
+    if (out.length >= MAX_TABS) break;
+    if (!s || typeof s.id !== 'string' || !SPACE_ID.test(s.id) || s.id === 'demo' || seen.has(s.id)) continue;
+    seen.add(s.id);
+    const name = String(s.name ?? '').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX) || 'Sans nom';
+    out.push({ id: s.id, name, theme: THEMES.includes(s.theme) ? s.theme : 'ardoise' });
+  }
+  return out.length ? out : DEFAULT_SPACES;
+}
+const spaceOf = (id) => spaces.find((s) => s.id === id);
+const spaceName = (id) => (id === 'demo' ? 'Démo' : spaceOf(id)?.name || 'Onglet');
+// Dernier onglet réel utilisé (retrouvé en fermant la démo), sinon le premier
+const lastRealSpace = () => (spaceOf(localStorage.getItem('lastSpace')) || spaces[0]).id;
+
+// Onglet courant : un onglet de la liste, ou 'demo' (mode démo, ouvert par l'icône fiole). Vérifié une fois la liste chargée.
+let space = SPACE_ID.test(localStorage.getItem('space') || '') ? localStorage.getItem('space') : 'perso';
+let labelFilter = {};
 let demoSeedPending = space === 'demo'; // remettre les exemples si la démo est vide à son ouverture
 let collapsed = new Set(JSON.parse(localStorage.getItem('collapsed') || '[]'));
 let pausedCollapsed = localStorage.getItem('pausedCollapsed') === '1';
@@ -52,10 +85,12 @@ const ICON = {
   tag: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12l-8 8-9-9V3h8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg>',
   subs: '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
   trash: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  up: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
+  down: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>',
+  pencil: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
 };
 const PRIO = { 1: 'Haute', 2: 'Moyenne', 3: 'Basse' };
 const STATUS = ['Non démarrée', 'En cours', 'Terminée', 'En pause'];
-const SPACE_NAME = { pro: 'Pro', perso: 'Perso', demo: 'Démo' };
 
 /* ---------- Outils ---------- */
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -71,8 +106,8 @@ const childrenOf = (id) => [...tasks.values()].filter((t) => t.parentId === id).
 // Message en bas de l'écran, avec un bouton facultatif (ex. « Annuler » après une suppression)
 function toast(msg, ms = 2600, action = null) {
   const el = $('#toast');
-  // Une fenêtre ouverte (fiche…) rend le reste de la page inactif : le message s'affiche alors dans la fenêtre
-  const host = document.querySelector('dialog[open]') || document.body;
+  // Une fenêtre ouverte (fiche…) rend le reste de la page inactif : le message s'affiche alors dans la fenêtre (la dernière ouverte)
+  const host = [...document.querySelectorAll('dialog[open]')].pop() || document.body;
   if (el.parentElement !== host) host.appendChild(el);
   el.replaceChildren(document.createTextNode(msg));
   if (action) {
@@ -130,7 +165,10 @@ const mq = matchMedia('(prefers-color-scheme: dark)');
 function applyTheme() {
   const t = localStorage.getItem('theme') || 'auto';
   html.classList.toggle('dark', t === 'dark' || (t === 'auto' && mq.matches));
-  html.dataset.space = space;
+  // Couleur de l'onglet courant (vert sauge pour la démo), mémorisée pour le prochain démarrage (script en tête de index.html)
+  const color = space === 'demo' ? 'sauge' : spaceOf(space)?.theme || 'corail';
+  html.dataset.color = color;
+  localStorage.setItem('color', color);
   const bg = getComputedStyle(html).getPropertyValue('--bg').trim();
   if (bg) document.querySelector('meta[name="theme-color"]').setAttribute('content', bg);
   document.querySelectorAll('#themeSeg button').forEach((b) => b.classList.toggle('active', b.dataset.theme === t));
@@ -169,7 +207,7 @@ onAuthStateChanged(auth, (u) => {
   unsubs = [];
   user = u;
   if (!u) { tasks = new Map(); show('login'); return; }
-  $('#userEmail').textContent = u.email || '';
+  $('#sumAccount').textContent = u.email || ''; // adresse connectée : résumé de la section Compte des Réglages
   firstSnapshot = true;
   show('app');
   render();
@@ -187,7 +225,10 @@ onAuthStateChanged(auth, (u) => {
       const data = d.data();
       settings = { ...settings, ...data, sort: { ...settings.sort, ...(data.sort || {}) } };
     }
+    spaces = cleanSpaces(settings.spaces);
+    settingsLoaded = true;
     requestRender();
+    if ($('#settings').open) renderTabsAdmin();
   }, dbError));
 });
 
@@ -203,8 +244,11 @@ function dbError(err) {
   el.hidden = false;
 }
 
+// Raccourci de l'icône (appui long) « Nouvelle tâche » : ./?new=1, dans le dernier onglet utilisé (jamais la démo).
+// Les anciens raccourcis ?new=perso / ?new=pro restent acceptés tant que le téléphone ne les a pas remplacés.
 function handleStartNew() {
-  if (startNew === 'pro' || startNew === 'perso') setSpace(startNew);
+  if (spaceOf(startNew)) setSpace(startNew);
+  else if (startNew && space === 'demo') setSpace(lastRealSpace());
   if (startNew) {
     history.replaceState(null, '', location.pathname);
     setTimeout(() => $('#quickInput').focus(), 150);
@@ -280,15 +324,49 @@ function groupParents(parents, mode) {
   };
 }
 
+/* ---------- Onglets de l'en-tête ---------- */
+let tabsSig = '';
+function renderTabs() {
+  const sig = JSON.stringify([spaces, space]);
+  if (sig === tabsSig) return;
+  tabsSig = sig;
+  $('.tabs').innerHTML = spaces.map((s) => `<button type="button" class="tab${s.id === space ? ' active' : ''}" data-space="${s.id}" role="tab"
+    aria-selected="${s.id === space}" title="${esc(s.name)}">${esc(s.name)}</button>`).join('');
+  layoutHeader();
+}
+// Les onglets restent à côté de la fiole et des Réglages tant qu'ils tiennent (toujours le cas sur PC) ;
+// sinon ils passent sur leur propre ligne, sous le nom de l'appli. Chaque onglet prend la largeur de son nom ;
+// si la ligne est encore trop courte, les noms les plus longs sont coupés avec « … ».
+function layoutHeader() {
+  const top = $('.top');
+  const nav = $('.tabs');
+  top.classList.remove('two-rows');
+  if (nav.hidden || !nav.clientWidth) return;
+  // Largeur naturelle des onglets (sans rétrécissement) : mesurée avec la classe « measuring » (scrollWidth ne suffit pas avec « … »)
+  nav.classList.add('measuring');
+  const pad = parseFloat(getComputedStyle(nav).paddingLeft) + parseFloat(getComputedStyle(nav).paddingRight);
+  const need = [...nav.children].reduce((w, b) => w + b.getBoundingClientRect().width, 0) + pad;
+  nav.classList.remove('measuring');
+  if (need > nav.clientWidth + 0.5) top.classList.add('two-rows');
+}
+window.addEventListener('resize', layoutHeader);
+
+// Une fois la liste des onglets chargée : si l'onglet courant n'existe plus (supprimé, ici ou sur un autre appareil), on ouvre le premier
+function ensureValidSpace() {
+  if (!settingsLoaded || space === 'demo' || spaceOf(space)) return;
+  space = spaces[0].id;
+  localStorage.setItem('space', space);
+  localStorage.setItem('lastSpace', space);
+}
+
 function render() {
   if (!user) return;
+  ensureValidSpace();
   applyTheme();
-  document.querySelectorAll('.tab').forEach((b) => {
-    b.classList.toggle('active', b.dataset.space === space);
-    b.setAttribute('aria-selected', b.dataset.space === space);
-  });
   const demo = space === 'demo';
-  $('.tabs').hidden = demo; // en démo, Perso et Pro ne sont pas affichés
+  $('.tabs').hidden = demo; // en démo, les onglets ne sont pas affichés
+  renderTabs();
+  if (demo) $('.top').classList.remove('two-rows');
   $('#demoPill').hidden = !demo;
   $('#demoBtn').classList.toggle('active', demo);
   $('#demoBtn').setAttribute('aria-pressed', String(demo));
@@ -481,7 +559,7 @@ function makeTopLevel(id) {
 function setSpace(s) {
   space = s;
   localStorage.setItem('space', s);
-  if (s !== 'demo') localStorage.setItem('lastSpace', s); // espace retrouvé en fermant la démo
+  if (s !== 'demo') localStorage.setItem('lastSpace', s); // onglet retrouvé en fermant la démo
   render();
   window.scrollTo({ top: 0 });
 }
@@ -565,11 +643,14 @@ function deleteWithUndo(ids, msg) {
   });
 }
 
-function askConfirm(msg, yesLabel = 'Supprimer') {
+// withCancel = false : simple message d'information (un seul bouton, non rouge)
+function askConfirm(msg, yesLabel = 'Supprimer', withCancel = true) {
   return new Promise((resolve) => {
     const dlg = $('#confirmDlg');
     $('#confirmMsg').textContent = msg;
     $('#confirmYes').textContent = yesLabel;
+    $('#confirmYes').className = withCancel ? 'danger-fill' : 'primary';
+    $('#confirmNo').hidden = !withCancel;
     const done = (v) => { dlg.close(); resolve(v); };
     $('#confirmYes').onclick = () => done(true);
     $('#confirmNo').onclick = () => done(false);
@@ -590,6 +671,11 @@ function openEditor(id) {
   f.priority.value = t.priority ? String(t.priority) : '';
   f.label.value = t.label || '';
   $('#labelField').hidden = !!t.parentId;
+  // Changer d'onglet : tâches parentes seulement (les sous-tâches suivent), pas en démo, et s'il y a au moins 2 onglets
+  const canMove = !t.parentId && t.space !== 'demo' && spaces.length > 1;
+  $('#spaceField').hidden = !canMove;
+  f.space.innerHTML = canMove ? spaces.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('') : '';
+  if (canMove) f.space.value = spaceOf(t.space) ? t.space : spaces[0].id;
   $('#subsEditor').hidden = !!t.parentId;
   $('#editorTitle').textContent = t.parentId ? 'Sous-tâche' : 'Tâche';
   $('#deleteTaskBtn').setAttribute('aria-label', t.parentId ? 'Supprimer la sous-tâche' : 'Supprimer la tâche');
@@ -623,23 +709,33 @@ $('#editForm').addEventListener('submit', (e) => {
   if (!title) { f.title.focus(); return; }
   const status = +f.status.value;
   const label = t.parentId ? null : (f.label.value.trim() || null);
+  // Déplacement vers un autre onglet : la tâche arrive en haut de sa liste, garde son étiquette ; ses sous-tâches la suivent
+  const dest = !$('#spaceField').hidden && spaceOf(f.space.value) && f.space.value !== t.space ? f.space.value : null;
+  const moved = dest ? {
+    space: dest,
+    position: Math.min(0, ...[...tasks.values()].filter((x) => x.space === dest && !x.parentId).map((x) => x.position ?? 0)) - 1000,
+  } : {};
   const batch = writeBatch(db);
   batch.update(taskRef(t.id), {
-    title, due: f.due.value || null, priority: f.priority.value ? +f.priority.value : null, label, ...statusFields(t, status),
+    title, due: f.due.value || null, priority: f.priority.value ? +f.priority.value : null, label, ...statusFields(t, status), ...moved,
   });
-  if (!t.parentId && status === 2 && t.status !== 2) {
-    childrenOf(t.id).forEach((k) => { if (k.status !== 2) batch.update(taskRef(k.id), statusFields(k, 2)); });
-  }
+  const kids = t.parentId ? [] : childrenOf(t.id);
+  kids.forEach((k) => {
+    const upd = { ...(dest ? { space: dest } : {}), ...(status === 2 && t.status !== 2 && k.status !== 2 ? statusFields(k, 2) : {}) };
+    if (Object.keys(upd).length) batch.update(taskRef(k.id), upd);
+  });
   save(batch.commit());
   if (label && labelFilter[space] && label !== labelFilter[space]) labelFilter[space] = null;
   $('#editor').close();
+  if (dest) toast(`Déplacée vers « ${spaceName(dest)} »`);
 });
 $('#cancelEditBtn').addEventListener('click', () => $('#editor').close());
-$('#editor').addEventListener('close', () => {
-  editingId = null;
-  const t = $('#toast'); // un message affiché dans la fiche (ex. « Annuler ») reste visible après sa fermeture
-  if (t.parentElement === $('#editor')) document.body.appendChild(t);
-});
+$('#editor').addEventListener('close', () => { editingId = null; });
+// Un message affiché dans une fenêtre (ex. « Annuler ») reste visible après sa fermeture : il passe dans la fenêtre encore ouverte, ou la page
+document.querySelectorAll('dialog').forEach((d) => d.addEventListener('close', () => {
+  const t = $('#toast');
+  if (t.parentElement === d) ([...document.querySelectorAll('dialog[open]')].pop() || document.body).appendChild(t);
+}));
 // Entrée dans le titre = Enregistrer (le titre tient sur une ligne : les retours à la ligne sont de toute façon retirés)
 const editTitle = $('#editForm').elements.namedItem('title');
 editTitle.addEventListener('keydown', (e) => {
@@ -746,11 +842,14 @@ document.addEventListener('contextmenu', (e) => {
   if (e.pointerType === 'mouse' || !e.pointerType) { releasePending = false; swallowClickUntil = 0; } // clic droit : pas de clic à ignorer
 });
 
-document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => setSpace(b.dataset.space)));
+$('.tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-space]');
+  if (b && spaceOf(b.dataset.space)) setSpace(b.dataset.space);
+});
 
 /* ---------- Mode démo (icône fiole) : un espace à part, pour tester et montrer sans toucher aux vraies tâches ---------- */
 $('#demoBtn').addEventListener('click', () => {
-  if (space === 'demo') { setSpace(localStorage.getItem('lastSpace') === 'pro' ? 'pro' : 'perso'); return; }
+  if (space === 'demo') { setSpace(lastRealSpace()); return; }
   setSpace('demo');
   demoSeedPending = true;
   maybeSeedDemo();
@@ -805,7 +904,7 @@ function writeDemoExamples(batch) {
 
 $('#resetDemoBtn').addEventListener('click', async () => {
   $('#settings').close();
-  if (!await askConfirm('Réinitialiser la démo ? Ses tâches seront remplacées par les exemples de départ. Tes tâches Perso et Pro ne sont pas touchées.', 'Réinitialiser')) return;
+  if (!await askConfirm('Réinitialiser la démo ? Ses tâches seront remplacées par les exemples de départ. Les tâches de tes onglets ne sont pas touchées.', 'Réinitialiser')) return;
   const batch = writeBatch(db);
   [...tasks.values()].filter((t) => t.space === 'demo').forEach((t) => batch.delete(taskRef(t.id)));
   writeDemoExamples(batch);
@@ -882,21 +981,180 @@ $('#micBtn').addEventListener('click', () => {
 });
 
 /* ---------- Réglages ---------- */
+// Sections pliables : Onglets, Affichage, Export Excel, Sauvegarde, (Démo), Compte. Toutes pliées à chaque ouverture,
+// une seule dépliée à la fois. En démo : pas de gestion des onglets ni de sauvegarde (vraies tâches : on peut montrer l'appli
+// sans risque) ; l'export ne propose que la démo ; section Démo pour la remettre à zéro.
 $('#settingsBtn').addEventListener('click', () => {
   applyTheme();
-  // En démo : pas d'export des vraies tâches (on peut montrer l'appli), mais la remise à zéro de la démo
-  $('#exportBox').hidden = space === 'demo';
-  $('#exportBtn').textContent = `Exporter l’espace ${SPACE_NAME[space]}`;
+  const demo = space === 'demo';
+  $('#tabsSection').hidden = demo;
+  $('#backupSection').hidden = demo;
+  $('#demoSection').hidden = !demo;
   $('#exportSubs').checked = false; // sous-tâches non incluses par défaut, à chaque ouverture
-  $('#resetDemoBtn').hidden = space !== 'demo';
+  document.querySelectorAll('#settingsBody .set-section').forEach((sec) => setSectionOpen(sec, false));
+  renderTabsAdmin();
+  fillExportSpaces(space);
+  updateThemeSummary();
   $('#settings').showModal();
 });
 $('#closeSettingsBtn').addEventListener('click', () => $('#settings').close());
+function setSectionOpen(sec, open) {
+  sec.classList.toggle('open', open);
+  sec.querySelector('.set-head').setAttribute('aria-expanded', String(open));
+  sec.querySelector('.set-body').hidden = !open;
+}
+$('#settingsBody').addEventListener('click', (e) => {
+  const head = e.target.closest('.set-head');
+  if (!head) return;
+  const sec = head.parentElement;
+  const open = !sec.classList.contains('open');
+  document.querySelectorAll('#settingsBody .set-section').forEach((s) => setSectionOpen(s, s === sec && open));
+  if (open) setTimeout(() => sec.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
+});
+// Liste « Onglet à exporter » : les onglets (sur l'onglet affiché par défaut) ; en démo, seulement la démo
+function fillExportSpaces(selected) {
+  const sel = $('#exportSpace');
+  const list = space === 'demo' ? [{ id: 'demo', name: 'Démo' }] : spaces;
+  const keep = list.some((s) => s.id === selected) ? selected : list.some((s) => s.id === sel.value) ? sel.value : list[0].id;
+  sel.innerHTML = list.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  sel.value = keep;
+}
+const THEME_SUM = { auto: 'Auto', light: 'Clair', dark: 'Sombre' };
+function updateThemeSummary() { $('#sumTheme').textContent = THEME_SUM[localStorage.getItem('theme') || 'auto']; }
+
+/* ---------- Gestion des onglets (Réglages) ---------- */
+function saveSpaces(list) {
+  spaces = cleanSpaces(list);
+  settings.spaces = spaces;
+  render();
+  renderTabsAdmin();
+  save(setDoc(settingsRef(), { spaces }, { merge: true }));
+}
+
+function renderTabsAdmin() {
+  const n = spaces.length;
+  $('#tabsAdmin').innerHTML = spaces.map((s, i) => `<li>
+      <button type="button" class="tab-edit" data-tab-edit="${s.id}" aria-label="Modifier l’onglet ${esc(s.name)}">
+        <span class="swatch" data-color="${s.theme}"></span><span class="tab-name">${esc(s.name)}</span>${ICON.pencil}
+      </button>
+      <button type="button" class="icon-btn" data-tab-move="-1" data-id="${s.id}" aria-label="Monter" ${i === 0 ? 'disabled' : ''}>${ICON.up}</button>
+      <button type="button" class="icon-btn" data-tab-move="1" data-id="${s.id}" aria-label="Descendre" ${i === n - 1 ? 'disabled' : ''}>${ICON.down}</button>
+      <button type="button" class="icon-btn danger" data-tab-del="${s.id}" aria-label="Supprimer l’onglet ${esc(s.name)}"
+        ${n === 1 ? 'disabled title="Il faut garder au moins un onglet"' : ''}>${ICON.trash}</button>
+    </li>`).join('');
+  $('#addTabBtn').hidden = n >= MAX_TABS;
+  $('#tabsFull').hidden = n < MAX_TABS;
+  $('#sumTabs').textContent = `${n} onglet${n > 1 ? 's' : ''}`;
+  if (space !== 'demo') fillExportSpaces($('#exportSpace').value); // noms ou liste modifiés pendant que les Réglages sont ouverts
+}
+
+$('#tabsAdmin').addEventListener('click', (e) => {
+  const ed = e.target.closest('[data-tab-edit]');
+  if (ed) { openTabDialog(ed.dataset.tabEdit); return; }
+  const mv = e.target.closest('[data-tab-move]');
+  if (mv) {
+    const list = [...spaces];
+    const i = list.findIndex((s) => s.id === mv.dataset.id);
+    const j = i + Number(mv.dataset.tabMove);
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    saveSpaces(list);
+    return;
+  }
+  const del = e.target.closest('[data-tab-del]');
+  if (del) deleteSpace(del.dataset.tabDel);
+});
+$('#addTabBtn').addEventListener('click', () => openTabDialog(null));
+
+// Fenêtre « Nouvel onglet » / « Modifier l'onglet » : nom (12 caractères au plus, sans doublon) et couleur (une par onglet)
+let tabEditing = null; // id de l'onglet modifié, null pour un nouvel onglet
+let tabColor = null;
+function openTabDialog(id) {
+  const s = id ? spaceOf(id) : null;
+  if (id && !s) return;
+  if (!id && spaces.length >= MAX_TABS) return;
+  tabEditing = id;
+  const used = new Set(spaces.filter((x) => x.id !== id).map((x) => x.theme));
+  tabColor = s ? s.theme : THEMES.find((t) => !used.has(t)) || THEMES[0];
+  $('#tabDlgTitle').textContent = s ? 'Modifier l’onglet' : 'Nouvel onglet';
+  const f = $('#tabForm');
+  f.tabname.value = s ? s.name : '';
+  $('#tabError').hidden = true;
+  $('#colorGrid').innerHTML = THEMES.map((t) => `<button type="button" class="color-opt${t === tabColor ? ' active' : ''}" data-color="${t}"
+      data-pick="${t}" aria-pressed="${t === tabColor}" ${used.has(t) ? 'disabled title="Déjà utilisée par un autre onglet"' : ''}>
+      <span class="swatch"></span>${THEME_NAME[t]}</button>`).join('');
+  $('#tabDlg').showModal();
+  if (!s || !matchMedia('(pointer: coarse)').matches) f.tabname.focus();
+}
+$('#colorGrid').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-pick]');
+  if (!b || b.disabled) return;
+  tabColor = b.dataset.pick;
+  $('#colorGrid').querySelectorAll('[data-pick]').forEach((x) => {
+    x.classList.toggle('active', x === b);
+    x.setAttribute('aria-pressed', String(x === b));
+  });
+});
+$('#tabCancel').addEventListener('click', () => $('#tabDlg').close());
+$('#tabForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const name = f.tabname.value.replace(/\s+/g, ' ').trim();
+  const err = (msg) => { $('#tabError').textContent = msg; $('#tabError').hidden = false; f.tabname.focus(); };
+  if (!name) return err('Donne un nom à l’onglet.');
+  if (name.length > NAME_MAX) return err(`${NAME_MAX} caractères au plus.`);
+  if (spaces.some((s) => s.id !== tabEditing && s.name.toLocaleLowerCase('fr') === name.toLocaleLowerCase('fr'))) return err('Un autre onglet porte déjà ce nom.');
+  if (tabEditing) {
+    saveSpaces(spaces.map((s) => (s.id === tabEditing ? { ...s, name, theme: tabColor } : s)));
+  } else {
+    if (spaces.length >= MAX_TABS) { $('#tabDlg').close(); return; }
+    let id;
+    do { id = 't' + Math.random().toString(36).slice(2, 10); } while (spaceOf(id) || [...tasks.values()].some((t) => t.space === id));
+    saveSpaces([...spaces, { id, name, theme: tabColor }]);
+    toast(`Onglet « ${name} » ajouté`);
+  }
+  $('#tabDlg').close();
+});
+
+// Suppression d'un onglet : refusée s'il reste des tâches non terminées (non démarrées, en cours ou en pause) ;
+// s'il ne reste que des tâches terminées, elles sont supprimées avec l'onglet, après confirmation (sans « Annuler »).
+// Les sous-tâches suivent leur tâche parente.
+async function deleteSpace(id) {
+  const s = spaceOf(id);
+  if (!s) return;
+  if (spaces.length === 1) { toast('Il faut garder au moins un onglet.'); return; }
+  const inTab = [...tasks.values()].filter((t) => t.space === id);
+  const parents = inTab.filter((t) => !t.parentId);
+  const open = parents.filter((t) => t.status !== 2).length;
+  if (open) {
+    const pr = open > 1 ? 'les' : 'la';
+    await askConfirm(`Il reste ${open} tâche${open > 1 ? 's' : ''} non terminée${open > 1 ? 's' : ''} dans « ${s.name} » : `
+      + `termine-${pr}, déplace-${pr} ou supprime-${pr} d’abord.`, 'OK', false);
+    return;
+  }
+  const done = parents.length;
+  const msg = done
+    ? `« ${s.name} » contient ${done} tâche${done > 1 ? 's' : ''} terminée${done > 1 ? 's' : ''}, qui ${done > 1 ? 'seront supprimées' : 'sera supprimée'} avec l’onglet. Pense à exporter avant.`
+    : `Supprimer l’onglet « ${s.name} » ?`;
+  if (!await askConfirm(msg)) return;
+  const rest = spaces.filter((x) => x.id !== id);
+  // Par lots (une écriture groupée Firestore accepte 500 opérations au plus) ; la liste des onglets est mise à jour en dernier
+  const ids = inTab.map((t) => t.id);
+  for (let i = 0; i < ids.length; i += 450) {
+    const batch = writeBatch(db);
+    ids.slice(i, i + 450).forEach((x) => batch.delete(taskRef(x)));
+    save(batch.commit());
+  }
+  delete labelFilter[id];
+  saveSpaces(rest);
+  toast(`Onglet « ${s.name} » supprimé`);
+}
 $('#themeSeg').addEventListener('click', (e) => {
   const b = e.target.closest('[data-theme]');
   if (!b) return;
   localStorage.setItem('theme', b.dataset.theme);
   applyTheme();
+  updateThemeSummary();
 });
 $('#logoutBtn').addEventListener('click', async () => {
   $('#settings').close();
@@ -909,12 +1167,14 @@ $('#backupBtn').addEventListener('click', exportBackup);
 const frDay = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
 const frTs = (t) => (t && typeof t.toDate === 'function' ? frDay(toISO(t.toDate())) : '');
 
-// Export lisible (ex. pour un point avec sa cheffe) : l'espace affiché, toutes étiquettes, dans l'ordre de l'écran.
-// La colonne N° permet de retrouver cet ordre après un tri dans Excel.
+// Export lisible (ex. pour un point avec sa cheffe) : l'onglet choisi dans la liste (l'onglet affiché par défaut ; la démo en démo),
+// toutes étiquettes, dans l'ordre de son écran (son tri). La colonne N° permet de retrouver cet ordre après un tri dans Excel.
 function exportReadable() {
+  const sid = $('#exportSpace').value;
+  if (sid !== 'demo' ? !spaceOf(sid) : space !== 'demo') return;
   const withSubs = $('#exportSubs').checked;
-  const parents = [...tasks.values()].filter((t) => t.space === space && !t.parentId);
-  const { active, paused, done } = groupParents(parents, settings.sort?.[space] || 'custom');
+  const parents = [...tasks.values()].filter((t) => t.space === sid && !t.parentId);
+  const { active, paused, done } = groupParents(parents, settings.sort?.[sid] || 'custom');
   const rows = [['N°', 'Titre', 'Priorité', 'État', 'Échéance', 'Étiquette', 'Créée le', 'En pause depuis', 'Terminée le']];
   // Une sous-tâche reprend l'étiquette de sa parente : un filtre par étiquette dans Excel la garde avec elle
   const line = (t, parent) => [rows.length, (parent ? '↳ ' : '') + t.title, PRIO[t.priority] || '', STATUS[t.status || 0],
@@ -925,19 +1185,23 @@ function exportReadable() {
     count++;
     if (withSubs) childrenOf(p.id).forEach((k) => rows.push(line(k, p)));
   }
-  downloadCSV(rows, `taches-${space}-${toISO(new Date())}.csv`, true);
+  // Nom de fichier d'après le nom de l'onglet, sans accents ni caractères spéciaux (ex. « Démo » → taches-demo-…)
+  const slug = spaceName(sid).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'onglet';
+  downloadCSV(rows, `taches-${slug}-${toISO(new Date())}.csv`, true);
   const subs = rows.length - 1 - count;
-  toast(`${count} tâche(s) ${SPACE_NAME[space]} exportée(s)` + (subs ? ` + ${subs} sous-tâche(s)` : ''));
+  toast(`${count} tâche(s) ${spaceName(sid)} exportée(s)` + (subs ? ` + ${subs} sous-tâche(s)` : ''));
 }
 
-// Sauvegarde complète (Pro + Perso, avec les champs techniques) : copie de secours, base de l'import prévu en V2
+// Sauvegarde complète (tous les onglets sauf la démo, avec les champs techniques) : copie de secours, base de l'import prévu en V2
 function exportBackup() {
   const fmtTs = (t) => (t && typeof t.toDate === 'function' ? t.toDate().toISOString() : '');
-  const header = ['espace', 'id', 'tache_parente', 'titre', 'statut', 'echeance', 'priorite', 'etiquette', 'position', 'creee_le', 'terminee_le', 'en_pause_le'];
+  const header = ['espace', 'onglet', 'id', 'tache_parente', 'titre', 'statut', 'echeance', 'priorite', 'etiquette', 'position', 'creee_le', 'terminee_le', 'en_pause_le'];
   const rows = [header];
-  const line = (t) => [t.space, t.id, t.parentId || '', t.title, STATUS[t.status || 0], t.due || '', t.priority ? PRIO[t.priority] : '',
+  const line = (t) => [t.space, spaceOf(t.space)?.name || '', t.id, t.parentId || '', t.title, STATUS[t.status || 0], t.due || '', t.priority ? PRIO[t.priority] : '',
     t.label || '', t.position ?? '', fmtTs(t.createdAt), fmtTs(t.completedAt), t.status === 3 ? fmtTs(t.pausedAt) : ''];
-  for (const s of ['pro', 'perso']) {
+  // Onglets dans leur ordre, puis d'éventuelles tâches d'un onglet qui n'est plus dans la liste (par sécurité, rien n'est perdu)
+  const ids = [...spaces.map((s) => s.id), ...new Set([...tasks.values()].map((t) => t.space).filter((x) => x !== 'demo' && !spaceOf(x)))];
+  for (const s of ids) {
     const parents = [...tasks.values()].filter((t) => t.space === s && !t.parentId)
       .sort((a, b) => ((a.status === 2) - (b.status === 2)) || ((a.status === 3) - (b.status === 3)) || byPos(a, b));
     for (const p of parents) {
