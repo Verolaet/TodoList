@@ -146,6 +146,9 @@ button.wide { width: 100%; margin: 8px 0; }
 /* Sur leur propre ligne : un peu plus compacts, pour qu'environ 30 lettres en tout tiennent sur un téléphone de 360 px */
 .top.two-rows .tab { padding: 8px 7px; font-size: 15px; }
 .tabs.measuring .tab { flex: none; }
+/* Encore trop longs pour une ligne : 2 lignes équilibrées (--per-row onglets par ligne, ex. 3 + 2) */
+.tabs.wrapped { flex-wrap: wrap; gap: 4px; border-radius: 22px; }
+.tabs.wrapped .tab { flex: 1 1 calc((100% - (var(--per-row) - 1) * 4px) / var(--per-row)); }
 .top .icon-btn { color: var(--text); }
 /* Mode démo : les onglets Perso / Pro sont remplacés par « Démo », l'icône fiole est allumée */
 .demo-pill { flex: 1; background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 12px; text-align: center; font-weight: 600; }

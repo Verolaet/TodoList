@@ -333,23 +333,33 @@ function renderTabs() {
   $('.tabs').innerHTML = spaces.map((s) => `<button type="button" class="tab${s.id === space ? ' active' : ''}" data-space="${s.id}" role="tab"
     aria-selected="${s.id === space}" title="${esc(s.name)}">${esc(s.name)}</button>`).join('');
   layoutHeader();
+  requestAnimationFrame(layoutHeader); // nouvelle mesure une fois l'affichage stabilisé (téléphone)
 }
-// Les onglets restent à côté de la fiole et des Réglages tant qu'ils tiennent (toujours le cas sur PC) ;
-// sinon ils passent sur leur propre ligne, sous le nom de l'appli. Chaque onglet prend la largeur de son nom ;
-// si la ligne est encore trop courte, les noms les plus longs sont coupés avec « … ».
+// 1. Les onglets restent à côté de la fiole et des Réglages tant qu'ils tiennent (toujours le cas sur PC).
+// 2. Sinon ils passent sur leur propre ligne, sous le nom de l'appli ; chaque onglet prend la largeur de son nom.
+// 3. Si cette ligne est encore trop courte, ils se répartissent sur 2 lignes équilibrées (ex. 3 + 2) au lieu d'être coupés.
+// Les noms ne sont coupés (« … ») que si un nom ne tient pas dans sa case (cas extrême).
+function tabsFit(nav) {
+  // Largeur naturelle des onglets (sans rétrécissement) : mesurée avec la classe « measuring » (scrollWidth ne suffit pas avec « … »)
+  nav.classList.add('measuring');
+  const need = [...nav.children].reduce((w, b) => w + b.getBoundingClientRect().width, 0)
+    + parseFloat(getComputedStyle(nav).paddingLeft) + parseFloat(getComputedStyle(nav).paddingRight);
+  nav.classList.remove('measuring');
+  return need <= nav.getBoundingClientRect().width - 0.5; // marge : un dépassement d'une fraction de pixel suffit à afficher « … »
+}
 function layoutHeader() {
   const top = $('.top');
   const nav = $('.tabs');
   top.classList.remove('two-rows');
-  if (nav.hidden || !nav.clientWidth) return;
-  // Largeur naturelle des onglets (sans rétrécissement) : mesurée avec la classe « measuring » (scrollWidth ne suffit pas avec « … »)
-  nav.classList.add('measuring');
-  const pad = parseFloat(getComputedStyle(nav).paddingLeft) + parseFloat(getComputedStyle(nav).paddingRight);
-  const need = [...nav.children].reduce((w, b) => w + b.getBoundingClientRect().width, 0) + pad;
-  nav.classList.remove('measuring');
-  if (need > nav.clientWidth + 0.5) top.classList.add('two-rows');
+  nav.classList.remove('wrapped');
+  if (nav.hidden || !nav.clientWidth || tabsFit(nav)) return;
+  top.classList.add('two-rows');
+  if (tabsFit(nav)) return;
+  nav.classList.add('wrapped');
+  nav.style.setProperty('--per-row', String(Math.ceil(nav.children.length / 2)));
 }
 window.addEventListener('resize', layoutHeader);
+document.fonts?.ready.then(layoutHeader);
 
 // Une fois la liste des onglets chargée : si l'onglet courant n'existe plus (supprimé, ici ou sur un autre appareil), on ouvre le premier
 function ensureValidSpace() {

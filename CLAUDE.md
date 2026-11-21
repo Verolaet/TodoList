@@ -45,7 +45,9 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
     une couleur par onglet (celles déjà prises sont grisées). Liste synchronisée entre appareils (meta/settings.spaces).
   - En-tête : chaque onglet prend la largeur de son nom. Les onglets restent à côté de la fiole et des Réglages tant qu'ils tiennent
     (toujours sur PC) ; sinon ils passent sur leur propre ligne, sous « Laeti’s todo » (en 15 px, plus compacts).
-    Mesuré le 21/11/2026 : sur 360 px de large, environ 33 lettres en tout tiennent (le conseil affiché dit 30) ; au-delà, « … ».
+    Mesuré le 21/11/2026 : sur 360 px de large, environ 33 lettres en tout tiennent sur cette ligne (le conseil affiché dit 30).
+    Au-delà, ils se répartissent sur 2 lignes équilibrées (ex. 3 + 2, classe `wrapped`) au lieu d'être coupés (demande de Laetitia
+    après essai sur son téléphone, 21/11/2026) ; « … » seulement si un nom ne tient pas dans sa case.
   - Fiche d'une tâche parente : champ « Onglet » pour la déplacer (masqué en démo et s'il n'y a qu'un onglet). Elle arrive en haut
     de la liste de l'onglet choisi, garde son étiquette ; ses sous-tâches la suivent.
   - Suppression d'un onglet : refusée s'il reste des tâches parentes non terminées (non démarrées, en cours ou en pause), avec un message ;
@@ -132,7 +134,7 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 1. Valider un vrai export de l'appli dans Excel. Le format a été vérifié le 21/11/2026 dans Excel (fr-FR) sur un fichier type :
    dates reconnues, accents, « ↳ », tri par échéance, retour à l'ordre par N°. Selon le retour de Laetitia : priorités numérotées
    (« 1 - Haute »), colonne « Tâche parente ».
-2. Valider les onglets configurables (21/11/2026) sur Android et PC : en-tête sur 2 lignes au-delà de 3 onglets environ,
+2. Valider les onglets configurables (21/11/2026) sur Android et PC : en-tête (onglets sur leur ligne, puis sur 2 lignes si les noms sont longs),
    les 6 nouvelles couleurs en clair et en sombre, Réglages en plein écran, déplacement d'une tâche, raccourci « Nouvelle tâche »
    (il peut falloir quelques jours pour que le téléphone remplace les 2 anciens raccourcis).
    Testé le 21/11/2026 avec la fausse base (PC 887 px, téléphone 360 et 375 px, clair et sombre).
