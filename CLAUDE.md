@@ -95,15 +95,15 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Les fichiers ont été déposés via l'upload web de GitHub (pas de `.nojekyll`, non bloquant).
 
 ## Reste à faire
-0. Valider un vrai export de l'appli dans Excel. Le format a été vérifié le 21/11/2026 dans Excel (fr-FR) sur un fichier type :
+1. Valider un vrai export de l'appli dans Excel. Le format a été vérifié le 21/11/2026 dans Excel (fr-FR) sur un fichier type :
    dates reconnues, accents, « ↳ », tri par échéance, retour à l'ordre par N°. Selon le retour de Laetitia : priorités numérotées
    (« 1 - Haute »), colonne « Tâche parente ».
-0. Valider sur Android (version du 19/11/2026) : fiche avec le clavier ouvert, poubelle + « Annuler », mode démo.
-1. Valider sur Android : connexion, synchro avec le PC, installation de la PWA, dictée.
-2. Test de sécurité : un autre compte Google doit voir « non autorisé ».
-3. Conseillé : ajouter l'adresse principale comme Propriétaire du projet Firebase (pérennité).
+2. Valider sur Android (version du 19/11/2026) : fiche avec le clavier ouvert, poubelle + « Annuler », mode démo.
+3. Valider sur Android : dictée, appui long (mise en pause), glisser à gauche au doigt (seuil 48 px).
 4. Ajuster les couleurs en conditions réelles si besoin (rendu différent téléphone / PC).
 5. V2 : import CSV.
+6. Optionnel (sécurité) : CSP en `<meta>` et restriction de la clé API Google Cloud (référents HTTP) — chacune doit être
+   validée par une vraie connexion Google, car une erreur bloque la connexion.
 
 ## Sécurité (vérifiée le 18/11/2026)
 - Constaté : HTTPS forcé + HSTS (GitHub) ; Firestore refuse toute lecture sans connexion (403 sur `users` et sur une requête
@@ -115,6 +115,10 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
   doit être validée par une vraie connexion Google (risque de casser la connexion).
 - Le dépôt est public : les adresses e-mail réelles ont été retirées des fichiers le 18/11/2026 (règles basées sur l'UID),
   mais restent dans l'historique Git (choix de Laetitia : pas de réécriture de l'historique). Commits signés avec l'adresse noreply.
+- Réglages faits par Laetitia le 18/11/2026 (déclarés « tout est réglé ») : GitHub — double authentification, adresse e-mail privée
+  + blocage des push qui l'exposent, ruleset sur `main` (pas de suppression ni de force push), réglages du dépôt ;
+  Firebase — test avec un autre compte (« non autorisé »), Google seul fournisseur de connexion, domaines autorisés,
+  Realtime Database verrouillée ou supprimée, adresse principale propriétaire du projet.
 - Pas de scan OWASP ZAP effectué (un scan actif viserait les serveurs de GitHub ; l'essentiel du risque est côté règles Firebase).
 
 ## Tester sans toucher aux vraies données
