@@ -952,11 +952,12 @@ function exportBackup() {
 }
 
 // CSV pour Excel : séparateur « ; », BOM UTF-8. forExcel : un texte commençant par = + - @ serait pris
-// pour une formule par Excel (ex. « -relancer » → #NOM?) ; on le préfixe alors d'une apostrophe.
+// pour une formule par Excel (ex. « -relancer » → #NOM?) ; on le préfixe alors d'un espace (testé dans Excel le 21/11/2026 :
+// l'espace se voit à peine, alors qu'une apostrophe resterait affichée).
 function downloadCSV(rows, filename, forExcel) {
   const csv = rows.map((r) => r.map((v) => {
     let s = v == null ? '' : String(v);
-    if (forExcel && typeof v === 'string' && /^[=+\-@]/.test(s)) s = "'" + s;
+    if (forExcel && typeof v === 'string' && /^[=+\-@]/.test(s)) s = ' ' + s;
     return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }).join(';')).join('\r\n');
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
