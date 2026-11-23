@@ -29,7 +29,45 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="loading" class="center"><div class="spinner" aria-label="Chargement"></div></div>
+  <div id="loading" class="center">
+    <div class="boot">
+      <div class="spinner" aria-label="Chargement"></div>
+      <p id="bootMsg" class="boot-msg" role="status" hidden></p>
+      <button type="button" id="bootRetry" class="primary" hidden>Réessayer</button>
+    </div>
+  </div>
+  <script>
+    // Filet de sécurité au démarrage : un message plutôt qu'une roue qui tourne sans fin.
+    // - app.js (ou une bibliothèque qu'il importe) n'a pas pu être chargé : message tout de suite ;
+    // - l'appli attend encore le réseau au bout de 10 s : message d'attente (la roue continue).
+    (function () {
+      var loading = document.getElementById('loading');
+      function say(text, retry) {
+        if (loading.hidden) return; // l'appli s'est affichée entre-temps
+        var p = document.getElementById('bootMsg');
+        p.textContent = text;
+        p.hidden = false;
+        document.getElementById('bootRetry').hidden = !retry;
+        if (retry) loading.querySelector('.spinner').hidden = true;
+      }
+      document.getElementById('bootRetry').onclick = function () { location.reload(); };
+      // Déjà connectée (démarrage rapide, voir app.js) : Firebase abandonne au bout de 30 s et l'appli s'ouvre hors ligne
+      var signedIn = false;
+      try { signedIn = localStorage.getItem('signedIn') === '1'; } catch (e) { /* stockage indisponible */ }
+      var slow = setTimeout(function () {
+        say(signedIn ? 'Le réseau répond mal : l’ouverture peut prendre jusqu’à 30 secondes.'
+          : 'Le réseau répond mal : le chargement prend plus de temps que d’habitude.', false);
+      }, 10000);
+      // Les erreurs de chargement d'un script ne remontent pas : on les capte au passage (phase de capture)
+      window.addEventListener('error', function (e) {
+        var s = e.target;
+        if (s && s.tagName === 'SCRIPT' && s.type === 'module') {
+          clearTimeout(slow);
+          say('L’appli n’a pas pu se charger. Si tu es sans réseau : ouvre-la une fois avec une connexion, elle marchera ensuite hors ligne.', true);
+        }
+      }, true);
+    })();
+  </script>
 
   <main id="login" class="center" hidden>
     <div class="login-card">

@@ -8,12 +8,23 @@ const SHELL = [
   './', './index.html', './styles.css', './app.js', './config.js', './dateparse.js', './version.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
 ];
+// Bibliothèques externes, indispensables au démarrage : sans elles, app.js ne s'exécute pas (roue sans fin hors ligne).
+// Elles sont enregistrées à chaque installation : avant le 23/11/2026, elles n'entraient dans le cache qu'au passage,
+// et disparaissaient à chaque nouvelle version. À TENIR À JOUR si la version de Firebase (app.js) ou de SortableJS (index.html) change.
+const LIBS = [
+  'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js',
+  'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js',
+  'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js',
+];
 
-// À l'installation d'une nouvelle version, on télécharge les fichiers sans passer par le cache du navigateur
+// À l'installation d'une nouvelle version, on télécharge nos fichiers sans passer par le cache du navigateur
 // (GitHub Pages autorise 10 min de cache : sans cela, la « nouvelle » version pourrait contenir d'anciens fichiers).
+// Les bibliothèques ont un numéro de version dans leur adresse (contenu figé) : le cache du navigateur suffit.
+// Si un seul fichier manque, la nouvelle version ne s'installe pas et l'ancienne continue de servir (elle réessaiera plus tard).
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE)
-    .then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))))
+    .then((c) => c.addAll([...SHELL.map((u) => new Request(u, { cache: 'reload' })), ...LIBS]))
     .then(() => self.skipWaiting()));
 });
 
@@ -42,6 +53,8 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const cached = await cache.match(key, { ignoreSearch: req.mode === 'navigate' });
+      // Bibliothèque déjà en cache : contenu figé, inutile de la redemander au réseau (utile quand le réseau est faible)
+      if (cached && LIBS.includes(req.url)) return cached;
       const network = fetch(netReq).then((res) => {
         if (res && (res.ok || res.type === 'opaque')) cache.put(key, res.clone());
         return res;

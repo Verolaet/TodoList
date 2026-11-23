@@ -11,6 +11,18 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Auth : connexion Google (Firebase Auth), session persistante. Un seul compte autorisé via `firestore.rules` (adresse e-mail à renseigner).
 - Le compte qui administre Firebase (adresse secondaire) est distinct du compte de connexion à l'appli (adresse principale).
 - Hors ligne : cache Firestore persistant (IndexedDB) + service worker (`sw.js`, stale-while-revalidate).
+  Corrigé le 23/11/2026 (roue sans fin à l'ouverture, en mode avion comme avec un réseau faible) — 2 causes :
+  - Les bibliothèques externes (3 modules Firebase, SortableJS) n'entraient dans le cache qu'au passage et disparaissaient
+    à chaque nouvelle version : sans elles, `app.js` ne s'exécute pas. Elles sont maintenant enregistrées à l'installation
+    (liste `LIBS` de `sw.js`, À TENIR À JOUR si la version de Firebase ou de SortableJS change) et servies depuis le cache sans revérification.
+  - Sur téléphone, `getAuth()` charge au démarrage le module de connexion Google (apis.google.com), sans limite de temps :
+    avec un réseau faible, `onAuthStateChanged` n'arrivait jamais. « Démarrage rapide » : si l'indicateur localStorage `signedIn` est présent
+    (session ouverte sur l'appareil), `initializeAuth` sans ce module ; la connexion lui passe `browserPopupRedirectResolver` explicitement.
+    Sans session, `getAuth()` comme avant. Déconnexion pendant un démarrage rapide : rechargement (écran de connexion habituel).
+    Il reste l'attente de Firebase Auth (vérification du compte) : 30 s au plus quand le réseau ne répond pas, puis l'appli s'ouvre hors ligne.
+  - Écran de chargement (script sous `#loading` dans `index.html`) : message + « Réessayer » si `app.js` ne se charge pas ;
+    message d'attente au bout de 10 s.
+  Mesuré le 23/11/2026 (Chrome simulant un Pixel 7) : hors ligne, tâches affichées en 0,3 s ; réseau qui ne répond pas, 30 s.
   Version : `version.js` (`APP_BUILD`, `APP_DATE`). Affichée « Version du jj/mm/aaaa hh:mm » (sans numéro, demande de Laetitia)
   en pied de page, dans les Réglages et sur l'écran de connexion ;
   `sw.js` l'importe et nomme son cache `todo-v<APP_BUILD>`. Le hook `.githooks/pre-commit` augmente le numéro et met la date/heure
@@ -33,7 +45,7 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
   Les règles Firestore ne regardent pas `space` : aucune modification côté Firebase pour les onglets.
 - Thème (auto/clair/sombre), onglet courant (`space`, y compris 'demo'), dernier onglet réel (`lastSpace`, retrouvé en fermant la démo),
   couleur de l'onglet courant (`color`, lue par le script en tête de `index.html` pour éviter un éclair d'une autre couleur),
-  sous-tâches repliées, sections « En pause » et « Terminées » repliées : localStorage (par appareil).
+  sous-tâches repliées, sections « En pause » et « Terminées » repliées, indicateur de session `signedIn` (démarrage rapide) : localStorage (par appareil).
 - Les instantanés Firestore sont lus avec `serverTimestamps: 'estimate'` (dates estimées tant que le serveur n'a pas confirmé).
 
 ## Spécification fonctionnelle (validée)
@@ -131,6 +143,12 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Les fichiers ont été déposés via l'upload web de GitHub (pas de `.nojekyll`, non bloquant).
 
 ## Reste à faire
+0. Valider les corrections hors ligne (23/11/2026, branche `claude/sleepy-meitner-mjsq1d`, pas encore sur `main`) :
+   - PC, vraie connexion Google (le démarrage rapide touche à la connexion) : se déconnecter, se reconnecter (fenêtre Google),
+     fermer et rouvrir l'appli (démarrage rapide : les tâches s'affichent), se déconnecter à nouveau (écran de connexion, sans boucle).
+   - Android : ouvrir une fois avec du réseau (installe la nouvelle version), puis mode avion → l'appli s'ouvre ;
+     réseau faible → elle s'ouvre (30 s au plus, avec un message au bout de 10 s) ; se déconnecter puis se reconnecter sur le téléphone.
+   - Si la connexion Google pose problème : annuler seulement le commit « démarrage rapide » (app.js) ; celui du service worker suffit pour le mode avion.
 1. Valider un vrai export de l'appli dans Excel. Le format a été vérifié le 21/11/2026 dans Excel (fr-FR) sur un fichier type :
    dates reconnues, accents, « ↳ », tri par échéance, retour à l'ordre par N°. Selon le retour de Laetitia : priorités numérotées
    (« 1 - Haute »), colonne « Tâche parente ».
@@ -164,6 +182,9 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 ## Tester sans toucher aux vraies données
 - Une page de test peut remplacer Firebase par une fausse base en mémoire : carte d'import (`importmap`) qui redirige les 3 modules
   gstatic vers des faux modules, service worker neutralisé, servie en local (ex. serveur PowerShell `HttpListener` sur localhost).
+- Test hors ligne (23/11/2026) : Playwright (Pixel 7) sur une copie servie en local, vrais modules Firebase 11.0.2 (paquet npm `firebase`)
+  servis à la place de gstatic, utilisateur factice écrit dans IndexedDB (`firebaseLocalStorageDb`, clé `firebase:authUser:<apiKey>:[DEFAULT]`),
+  API Google bloquées ; réseau coupé (`setOffline`) ou réseau qui ne répond pas (requêtes laissées sans réponse).
 
 ## Préférences de Laetitia
 - Poser des questions de clarification avant de se lancer si nécessaire ; réponses structurées en puces.
