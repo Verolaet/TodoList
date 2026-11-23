@@ -1,6 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut,
+  getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, browserPopupRedirectResolver,
+  GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut,
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -11,7 +12,14 @@ import { parseQuickAdd, toISO, addDays } from './dateparse.js';
 
 /* ---------- Firebase ---------- */
 const fbApp = initializeApp(firebaseConfig);
-const auth = getAuth(fbApp);
+// Démarrage rapide (23/11/2026) : sur téléphone, getAuth() charge au démarrage le module de connexion Google
+// (apis.google.com), sans limite de temps. Avec un réseau faible, l'appli restait alors bloquée sur la roue, même déjà connectée.
+// Quand une session existe sur l'appareil, on démarre donc sans ce module (il ne sert qu'à se connecter).
+// Sans session (écran de connexion), on garde getAuth() : la connexion Google fonctionne exactement comme avant.
+const fastStart = localStorage.getItem('signedIn') === '1';
+const auth = fastStart
+  ? initializeAuth(fbApp, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence] })
+  : getAuth(fbApp);
 let db;
 try {
   db = initializeFirestore(fbApp, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
@@ -188,16 +196,17 @@ function loginError(err) {
   el.textContent = 'Connexion impossible (' + (err.code || err.message) + ').';
   el.hidden = false;
 }
-getRedirectResult(auth).catch(loginError);
+// Retour d'une connexion par redirection : seulement possible sans session (donc jamais en démarrage rapide)
+if (!fastStart) getRedirectResult(auth, browserPopupRedirectResolver).catch(loginError);
 
 $('#loginBtn').addEventListener('click', async () => {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   try {
-    await signInWithPopup(auth, provider);
+    await signInWithPopup(auth, provider, browserPopupRedirectResolver);
   } catch (err) {
     if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(err.code)) {
-      await signInWithRedirect(auth, provider);
+      await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
     } else loginError(err);
   }
 });
@@ -206,7 +215,14 @@ onAuthStateChanged(auth, (u) => {
   unsubs.forEach((f) => f());
   unsubs = [];
   user = u;
-  if (!u) { tasks = new Map(); show('login'); return; }
+  if (!u) {
+    localStorage.removeItem('signedIn');
+    // Session terminée (déconnexion, ici ou sur un autre onglet) pendant un démarrage rapide : on recharge pour retrouver
+    // l'écran de connexion habituel, avec le module de connexion Google préchargé (pas de boucle : l'indicateur vient d'être retiré)
+    if (fastStart) { location.reload(); return; }
+    tasks = new Map(); show('login'); return;
+  }
+  localStorage.setItem('signedIn', '1');
   $('#sumAccount').textContent = u.email || ''; // adresse connectée : résumé de la section Compte des Réglages
   firstSnapshot = true;
   show('app');

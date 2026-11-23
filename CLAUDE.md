@@ -28,6 +28,8 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
   `sw.js` l'importe et nomme son cache `todo-v<APP_BUILD>`. Le hook `.githooks/pre-commit` augmente le numéro et met la date/heure
   à chaque commit (activer après un clone : `git config core.hooksPath .githooks`). Un dépôt via l'upload web de GitHub ne passe pas par le hook :
   augmenter alors `APP_BUILD` à la main, sinon les appareils ne se mettent pas à jour.
+  Session Claude dans le cloud : l'horloge y est en UTC, le hook note donc l’heure avec 1 h de retard en hiver (2 h en été) :
+  corriger `APP_DATE` à l'heure de Paris (`TZ=Europe/Paris date`) puis `git commit --amend --no-verify` (sinon le numéro augmente encore).
   GitHub Pages envoie `Cache-Control: max-age=600` : le SW installe avec `cache: 'reload'` et revérifie nos fichiers en `no-cache`.
   `app.js` recharge la page au `controllerchange` (sauf saisie en cours) et cherche une mise à jour à chaque retour au premier plan.
 - Dépendances CDN : Firebase JS SDK 11.0.2 (gstatic, modules ES), SortableJS 1.15.2 (cdnjs).
