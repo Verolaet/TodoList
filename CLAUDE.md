@@ -145,9 +145,8 @@ Usage : Android (Chrome) + PC, tous deux en mode sombre. Répondre en français.
 - Les fichiers ont été déposés via l'upload web de GitHub (pas de `.nojekyll`, non bloquant).
 
 ## Reste à faire
-0. Valider les corrections hors ligne (23/11/2026, branche `claude/sleepy-meitner-mjsq1d`, pas encore sur `main`) :
-   - PC, vraie connexion Google (le démarrage rapide touche à la connexion) : se déconnecter, se reconnecter (fenêtre Google),
-     fermer et rouvrir l'appli (démarrage rapide : les tâches s'affichent), se déconnecter à nouveau (écran de connexion, sans boucle).
+0. Valider les corrections hors ligne (23/11/2026) : sur `main` et en ligne depuis le 25/11/2026 (version du 23/11/2026 23:18).
+   - PC, vraie connexion Google : validé par Laetitia le 25/11/2026 (« Tout marche »).
    - Android : ouvrir une fois avec du réseau (installe la nouvelle version), puis mode avion → l'appli s'ouvre ;
      réseau faible → elle s'ouvre (30 s au plus, avec un message au bout de 10 s) ; se déconnecter puis se reconnecter sur le téléphone.
    - Si la connexion Google pose problème : annuler seulement le commit « démarrage rapide » (app.js) ; celui du service worker suffit pour le mode avion.
